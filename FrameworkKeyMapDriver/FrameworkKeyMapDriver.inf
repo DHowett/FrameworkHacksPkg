@@ -1,0 +1,19 @@
+[Defines]
+  INF_VERSION    = 0x00010005
+  BASE_NAME      = FrameworkKeyMapDriver
+  FILE_GUID      = 57F2B1A6-643D-11EC-AE53-E3A3F0CD50CC
+  MODULE_TYPE    = UEFI_DRIVER
+  VERSION_STRING = 1.0
+  ENTRY_POINT    = FrameworkKeyMapDriverEntryPoint
+
+[Sources]
+  Driver.c
+  EC.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  BaseLib
+  TimerLib
+  UefiDriverEntryPoint
