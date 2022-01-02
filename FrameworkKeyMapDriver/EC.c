@@ -29,40 +29,48 @@ static __inline unsigned short inw(unsigned short __port)
 
 typedef enum _ec_transaction_direction { EC_TX_WRITE, EC_TX_READ } ec_transaction_direction;
 
+// As defined in MEC172x section 16.8.3
+// https://ww1.microchip.com/downloads/en/DeviceDoc/MEC172x-Data-Sheet-DS00003583C.pdf
+#define FW_EC_BYTE_ACCESS               0x00
+#define FW_EC_LONG_ACCESS_AUTOINCREMENT 0x03
+
+#define FW_EC_EC_ADDRESS_REGISTER0      0x0802
+#define FW_EC_EC_ADDRESS_REGISTER1      0x0803
+#define FW_EC_EC_DATA_REGISTER0         0x0804
+#define FW_EC_EC_DATA_REGISTER1         0x0805
+#define FW_EC_EC_DATA_REGISTER2         0x0806
+#define FW_EC_EC_DATA_REGISTER3         0x0807
+
 static int ec_transact(ec_transaction_direction direction, UINT16 address,
 		       char *data, UINT16 size)
 {
 	int pos = 0;
 	UINT16 temp[2];
 	if (address % 4 > 0) {
-		outw(address & 0xFFFC, 0x802);
+		outw((address & 0xFFFC) | FW_EC_BYTE_ACCESS, FW_EC_EC_ADDRESS_REGISTER0);
 		/* Unaligned start address */
 		for (int i = address % 4; i < 4; ++i) {
 			char *storage = &data[pos++];
 			if (direction == EC_TX_WRITE)
-				outb(*storage, 0x804 + i);
+				outb(*storage, FW_EC_EC_DATA_REGISTER0 + i);
 			else if (direction == EC_TX_READ)
-				*storage = inb(0x804 + i);
+				*storage = inb(FW_EC_EC_DATA_REGISTER0 + i);
 		}
 		address = (address + 4) & 0xFFFC; // Up to next multiple of 4
 	}
 
 	if (size - pos >= 4) {
-		outw((address & 0xFFFC) | 0x3, 0x802);
+		outw((address & 0xFFFC) | FW_EC_LONG_ACCESS_AUTOINCREMENT, FW_EC_EC_ADDRESS_REGISTER0);
 		// Chunk writing for anything large, 4 bytes at a time
 		// Writing to 804, 806 automatically increments dest address
 		while (size - pos >= 4) {
 			if (direction == EC_TX_WRITE) {
 				CopyMem(temp, &data[pos], sizeof(temp));
-				outw(temp[0], 0x804);
-				outw(temp[1], 0x806);
+				outw(temp[0], FW_EC_EC_DATA_REGISTER0);
+				outw(temp[1], FW_EC_EC_DATA_REGISTER2);
 			} else if (direction == EC_TX_READ) {
-				//data[pos] = inb(0x804);
-				//data[pos + 1] = inb(0x805);
-				//data[pos + 2] = inb(0x806);
-				//data[pos + 3] = inb(0x807);
-				temp[0] = inw(0x804);
-				temp[1] = inw(0x806);
+				temp[0] = inw(FW_EC_EC_DATA_REGISTER0);
+				temp[1] = inw(FW_EC_EC_DATA_REGISTER2);
 				CopyMem(&data[pos], temp, sizeof(temp));
 			}
 
@@ -73,13 +81,13 @@ static int ec_transact(ec_transaction_direction direction, UINT16 address,
 
 	if (size - pos > 0) {
 		// Unaligned remaining data - R/W it by byte
-		outw(address & 0xFFFC, 0x802);
+		outw((address & 0xFFFC) | FW_EC_BYTE_ACCESS, FW_EC_EC_ADDRESS_REGISTER0);
 		for (int i = 0; i < (size - pos); ++i) {
 			char *storage = &data[pos + i];
 			if (direction == EC_TX_WRITE)
-				outb(*storage, 0x804 + i);
+				outb(*storage, FW_EC_EC_DATA_REGISTER0 + i);
 			else if (direction == EC_TX_READ)
-				*storage = inb(0x804 + i);
+				*storage = inb(FW_EC_EC_DATA_REGISTER0 + i);
 		}
 	}
 	return 0;
