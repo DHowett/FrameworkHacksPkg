@@ -1,0 +1,40 @@
+[Defines]
+  INF_VERSION                    = 0x00010006
+  BASE_NAME                      = ECTool
+  FILE_GUID                      = 8b41d3f3-0ce9-4f54-94f5-e29a61487f72
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = UefiMain
+
+[Sources]
+  ECTool.c
+  ECTool.uni
+
+[Packages]
+  MdePkg/MdePkg.dec
+  FrameworkHacksPkg/FrameworkHacksPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  UefiApplicationEntryPoint
+  UefiLib
+  DebugLib
+  MemoryAllocationLib
+  UefiRuntimeServicesTableLib
+  UefiBootServicesTableLib
+  DevicePathLib
+  BaseMemoryLib
+  PcdLib
+  FileHandleLib
+  PrintLib
+  CrosECLib
+
+[Protocols]
+  gEfiSimpleTextInputExProtocolGuid                       ## CONSUMES
+  gEfiSimpleTextInProtocolGuid                            ## CONSUMES
+  gEfiSimpleTextOutProtocolGuid                           ## CONSUMES
+  gEfiSimpleFileSystemProtocolGuid                        ## SOMETIMES_CONSUMES
+  gEfiLoadedImageProtocolGuid                             ## CONSUMES
+  gEfiComponentName2ProtocolGuid                          ## SOMETIMES_CONSUMES
+  gEfiUnicodeCollation2ProtocolGuid                       ## CONSUMES
+  gEfiDevicePathProtocolGuid                              ## CONSUMES

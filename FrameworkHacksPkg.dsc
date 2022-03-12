@@ -28,10 +28,14 @@
   PostCodeLib|MdePkg/Library/BasePostCodeLibPort80/BasePostCodeLibPort80.inf
   PcdLib|MdePkg/Library/BasePcdLibNull/BasePcdLibNull.inf
   TimerLib|UefiCpuPkg/Library/CpuTimerLib/BaseCpuTimerLib.inf
+
   CrosECLib|FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
+
+  FileHandleLib|MdePkg/Library/UefiFileHandleLib/UefiFileHandleLib.inf
 
 !include MdePkg/MdeLibs.dsc.inc
 
 [Components]
   FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
   FrameworkHacksPkg/Drivers/FrameworkKeyMapDriver/FrameworkKeyMapDriver.inf
+  FrameworkHacksPkg/Application/ECTool/ECTool.inf
