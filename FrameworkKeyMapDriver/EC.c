@@ -3,6 +3,8 @@
 #include <Library/TimerLib.h>
 #include "EC.h"
 
+#define memcpy CopyMem
+
 static __inline void outb(unsigned char __val, unsigned short __port)
 {
 	__asm__ volatile ("outb %0,%1" : : "a" (__val), "dN" (__port));
@@ -27,51 +29,56 @@ static __inline unsigned short inw(unsigned short __port)
 	return __val;
 }
 
-typedef enum _ec_transaction_direction { EC_TX_WRITE, EC_TX_READ } ec_transaction_direction;
+typedef enum _EC_TRANSFER_DIRECTION
+{
+	EC_XFER_WRITE,
+	EC_XFER_READ
+} EC_TRANSFER_DIRECTION;
 
 // As defined in MEC172x section 16.8.3
 // https://ww1.microchip.com/downloads/en/DeviceDoc/MEC172x-Data-Sheet-DS00003583C.pdf
-#define FW_EC_BYTE_ACCESS               0x00
-#define FW_EC_LONG_ACCESS_AUTOINCREMENT 0x03
+#define MEC_EC_BYTE_ACCESS               0x00
+#define MEC_EC_LONG_ACCESS_AUTOINCREMENT 0x03
 
-#define FW_EC_EC_ADDRESS_REGISTER0      0x0802
-#define FW_EC_EC_ADDRESS_REGISTER1      0x0803
-#define FW_EC_EC_DATA_REGISTER0         0x0804
-#define FW_EC_EC_DATA_REGISTER1         0x0805
-#define FW_EC_EC_DATA_REGISTER2         0x0806
-#define FW_EC_EC_DATA_REGISTER3         0x0807
+#define MEC_LPC_ADDRESS_REGISTER0 0x0802
+#define MEC_LPC_ADDRESS_REGISTER1 0x0803
+#define MEC_LPC_DATA_REGISTER0    0x0804
+#define MEC_LPC_DATA_REGISTER1    0x0805
+#define MEC_LPC_DATA_REGISTER2    0x0806
+#define MEC_LPC_DATA_REGISTER3    0x0807
 
-static int ec_transact(ec_transaction_direction direction, UINT16 address,
-		       char *data, UINT16 size)
-{
+static int ECTransfer(EC_TRANSFER_DIRECTION direction,
+                      USHORT address,
+                      char* data,
+                      USHORT size) {
 	int pos = 0;
-	UINT16 temp[2];
-	if (address % 4 > 0) {
-		outw((address & 0xFFFC) | FW_EC_BYTE_ACCESS, FW_EC_EC_ADDRESS_REGISTER0);
+	USHORT temp[2];
+	if(address % 4 > 0) {
+		outw((address & 0xFFFC) | MEC_EC_BYTE_ACCESS, MEC_LPC_ADDRESS_REGISTER0);
 		/* Unaligned start address */
-		for (int i = address % 4; i < 4; ++i) {
-			char *storage = &data[pos++];
-			if (direction == EC_TX_WRITE)
-				outb(*storage, FW_EC_EC_DATA_REGISTER0 + i);
-			else if (direction == EC_TX_READ)
-				*storage = inb(FW_EC_EC_DATA_REGISTER0 + i);
+		for(int i = address % 4; i < 4; ++i) {
+			char* storage = &data[pos++];
+			if(direction == EC_XFER_WRITE)
+				outb(*storage, MEC_LPC_DATA_REGISTER0 + i);
+			else if(direction == EC_XFER_READ)
+				*storage = inb(MEC_LPC_DATA_REGISTER0 + i);
 		}
-		address = (address + 4) & 0xFFFC; // Up to next multiple of 4
+		address = (address + 4) & 0xFFFC;  // Up to next multiple of 4
 	}
 
-	if (size - pos >= 4) {
-		outw((address & 0xFFFC) | FW_EC_LONG_ACCESS_AUTOINCREMENT, FW_EC_EC_ADDRESS_REGISTER0);
+	if(size - pos >= 4) {
+		outw((address & 0xFFFC) | MEC_EC_LONG_ACCESS_AUTOINCREMENT, MEC_LPC_ADDRESS_REGISTER0);
 		// Chunk writing for anything large, 4 bytes at a time
 		// Writing to 804, 806 automatically increments dest address
-		while (size - pos >= 4) {
-			if (direction == EC_TX_WRITE) {
-				CopyMem(temp, &data[pos], sizeof(temp));
-				outw(temp[0], FW_EC_EC_DATA_REGISTER0);
-				outw(temp[1], FW_EC_EC_DATA_REGISTER2);
-			} else if (direction == EC_TX_READ) {
-				temp[0] = inw(FW_EC_EC_DATA_REGISTER0);
-				temp[1] = inw(FW_EC_EC_DATA_REGISTER2);
-				CopyMem(&data[pos], temp, sizeof(temp));
+		while(size - pos >= 4) {
+			if(direction == EC_XFER_WRITE) {
+				memcpy(temp, &data[pos], sizeof(temp));
+				outw(temp[0], MEC_LPC_DATA_REGISTER0);
+				outw(temp[1], MEC_LPC_DATA_REGISTER2);
+			} else if(direction == EC_XFER_READ) {
+				temp[0] = inw(MEC_LPC_DATA_REGISTER0);
+				temp[1] = inw(MEC_LPC_DATA_REGISTER2);
+				memcpy(&data[pos], temp, sizeof(temp));
 			}
 
 			pos += 4;
@@ -79,15 +86,15 @@ static int ec_transact(ec_transaction_direction direction, UINT16 address,
 		}
 	}
 
-	if (size - pos > 0) {
+	if(size - pos > 0) {
 		// Unaligned remaining data - R/W it by byte
-		outw((address & 0xFFFC) | FW_EC_BYTE_ACCESS, FW_EC_EC_ADDRESS_REGISTER0);
-		for (int i = 0; i < (size - pos); ++i) {
-			char *storage = &data[pos + i];
-			if (direction == EC_TX_WRITE)
-				outb(*storage, FW_EC_EC_DATA_REGISTER0 + i);
-			else if (direction == EC_TX_READ)
-				*storage = inb(FW_EC_EC_DATA_REGISTER0 + i);
+		outw((address & 0xFFFC) | MEC_EC_BYTE_ACCESS, MEC_LPC_ADDRESS_REGISTER0);
+		for(int i = 0; i < (size - pos); ++i) {
+			char* storage = &data[pos + i];
+			if(direction == EC_XFER_WRITE)
+				outb(*storage, MEC_LPC_DATA_REGISTER0 + i);
+			else if(direction == EC_XFER_READ)
+				*storage = inb(MEC_LPC_DATA_REGISTER0 + i);
 		}
 	}
 	return 0;
@@ -97,12 +104,11 @@ static int ec_transact(ec_transaction_direction direction, UINT16 address,
  * Wait for the EC to be unbusy.  Returns 0 if unbusy, non-zero if
  * timeout.
  */
-static int wait_for_ec(int status_addr, int timeout_usec)
-{
+static int ECWaitForReady(int statusAddr, int timeoutUsec) {
 	int i;
 	int delay = 5;
 
-	for (i = 0; i < timeout_usec; i += delay) {
+	for(i = 0; i < timeoutUsec; i += delay) {
 		/*
 		 * Delay first, in case we just sent out a command but the EC
 		 * hasn't raised the busy flag.  However, I think this doesn't
@@ -110,31 +116,61 @@ static int wait_for_ec(int status_addr, int timeout_usec)
 		 * busy flag is set by hardware.  Minor issue in any case,
 		 * since the initial delay is very short.
 		 */
-		MicroSecondDelay(MIN(delay, timeout_usec - i));
+		MicroSecondDelay(MIN(delay, timeoutUsec - i));
 
-		if (!(inb(status_addr) & EC_LPC_STATUS_BUSY_MASK))
+		if(!(inb(statusAddr) & EC_LPC_STATUS_BUSY_MASK))
 			return 0;
 
 		/* Increase the delay interval after a few rapid checks */
-		if (i > 20)
+		if(i > 20)
 			delay = MIN(delay * 2, 10000);
 	}
 	return -1; /* Timeout */
 }
 
-static UINT8 ec_checksum_buffer(char *data, int size)
-{
-	UINT8 sum = 0;
-	for (int i = 0; i < size; ++i) {
+static UCHAR ECChecksumBuffer(char* data, int size) {
+	UCHAR sum = 0;
+	for(int i = 0; i < size; ++i) {
 		sum += data[i];
 	}
 	return sum;
 };
 
-int ec_command(int command, int version, const void *outdata,
-	       int outsize, void *indata, int insize)
-{
-	UINT8 csum = 0;
+int ECReadMemoryLPC(int offset, void* buffer, int length) {
+	int off = offset;
+	int cnt = 0;
+	UCHAR* s = buffer;
+
+	if(offset + length > EC_MEMMAP_SIZE) {
+		return -1;
+	}
+
+	if(length > 0) {
+		// Read specified bytes directly
+		ECTransfer(EC_XFER_READ, (USHORT)(0x100 + off), buffer, (USHORT)length);
+		cnt = length;
+	} else {
+		// Read a string until we get a \0
+		for(; off < EC_MEMMAP_SIZE; ++off, ++s) {
+			ECTransfer(EC_XFER_READ, (USHORT)(0x100 + off), (char*)s, 1);
+			cnt++;
+			if(!*s) {
+				break;
+			}
+		}
+	}
+
+	return cnt;
+}
+
+int ECSendCommandLPCv3(int command,
+                       int version,
+                       const void* outdata,
+                       int outsize,
+                       void* indata,
+                       int insize) {
+	int res = EC_RES_SUCCESS;
+	UCHAR csum = 0;
 	int i;
 
 	union {
@@ -148,63 +184,75 @@ int ec_command(int command, int version, const void *outdata,
 	} r;
 
 	/* Fail if output size is too big */
-	if (outsize + sizeof(u.rq) > EC_LPC_HOST_PACKET_SIZE)
-		return -EC_RES_REQUEST_TRUNCATED;
+	if(outsize + sizeof(u.rq) > EC_LPC_HOST_PACKET_SIZE) {
+		res = -EC_RES_REQUEST_TRUNCATED;
+		goto Out;
+	}
 
 	/* Fill in request packet */
 	/* TODO(crosbug.com/p/23825): This should be common to all protocols */
 	u.rq.struct_version = EC_HOST_REQUEST_VERSION;
 	u.rq.checksum = 0;
-	u.rq.command = command;
-	u.rq.command_version = version;
+	u.rq.command = (USHORT)command;
+	u.rq.command_version = (UCHAR)version;
 	u.rq.reserved = 0;
-	u.rq.data_len = outsize;
+	u.rq.data_len = (USHORT)outsize;
 
-	CopyMem(&u.data[sizeof(u.rq)], outdata, outsize);
-	csum = ec_checksum_buffer(u.data, outsize + sizeof(u.rq));
-	u.rq.checksum = (UINT8)(-csum);
+	memcpy(&u.data[sizeof(u.rq)], outdata, outsize);
+	csum = ECChecksumBuffer(u.data, outsize + sizeof(u.rq));
+	u.rq.checksum = (UCHAR)(-csum);
 
-	if (wait_for_ec(EC_LPC_ADDR_HOST_CMD, 1000000)) {
-		return -EC_RES_ERROR;
+	if(ECWaitForReady(EC_LPC_ADDR_HOST_CMD, 1000000)) {
+		res = -EC_RES_TIMEOUT;
+		goto Out;
 	}
 
-	ec_transact(EC_TX_WRITE, 0, u.data, outsize + sizeof(u.rq));
+	ECTransfer(EC_XFER_WRITE, 0, u.data, (USHORT)(outsize + sizeof(u.rq)));
 
 	/* Start the command */
 	outb(EC_COMMAND_PROTOCOL_3, EC_LPC_ADDR_HOST_CMD);
 
-	if (wait_for_ec(EC_LPC_ADDR_HOST_CMD, 1000000)) {
-		return -EC_RES_ERROR;
+	if(ECWaitForReady(EC_LPC_ADDR_HOST_CMD, 1000000)) {
+		res = -EC_RES_TIMEOUT;
+		goto Out;
 	}
 
 	/* Check result */
 	i = inb(EC_LPC_ADDR_HOST_DATA);
-	if (i) {
-		return -EECRESULT - i;
+	if(i) {
+		res = -EECRESULT - i;
+		goto Out;
 	}
 
 	csum = 0;
-	ec_transact(EC_TX_READ, 0, r.data, sizeof(r.rs));
+	ECTransfer(EC_XFER_READ, 0, r.data, sizeof(r.rs));
 
-	if (r.rs.struct_version != EC_HOST_RESPONSE_VERSION) {
-		return -EC_RES_INVALID_RESPONSE;
+	if(r.rs.struct_version != EC_HOST_RESPONSE_VERSION) {
+		res = -EC_RES_INVALID_HEADER_VERSION;
+		goto Out;
 	}
 
-	if (r.rs.reserved) {
-		return -EC_RES_INVALID_RESPONSE;
+	if(r.rs.reserved) {
+		res = -EC_RES_INVALID_HEADER;
+		goto Out;
 	}
 
-	if (r.rs.data_len > insize) {
-		return -EC_RES_RESPONSE_TOO_BIG;
+	if(r.rs.data_len > insize) {
+		res = -EC_RES_RESPONSE_TOO_BIG;
+		goto Out;
 	}
 
-	if (r.rs.data_len > 0) {
-		ec_transact(EC_TX_READ, 8, r.data + sizeof(r.rs), r.rs.data_len);
-		if (ec_checksum_buffer(r.data, sizeof(r.rs) + r.rs.data_len)) {
-			return -EC_RES_INVALID_CHECKSUM;
+	if(r.rs.data_len > 0) {
+		ECTransfer(EC_XFER_READ, 8, r.data + sizeof(r.rs), r.rs.data_len);
+		if(ECChecksumBuffer(r.data, sizeof(r.rs) + r.rs.data_len)) {
+			res = -EC_RES_INVALID_CHECKSUM;
+			goto Out;
 		}
 
-		CopyMem(indata, r.data + sizeof(r.rs), r.rs.data_len);
+		memcpy(indata, r.data + sizeof(r.rs), r.rs.data_len);
 	}
-	return r.rs.data_len;
+	res = r.rs.data_len;
+
+Out:
+	return res;
 }

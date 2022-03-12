@@ -13,6 +13,6 @@ FrameworkKeyMapDriverEntryPoint (
 		           0x01, 0x00, 0x00, 0x00,
 			   0x04, 0x04, 0x76, 0x00};
 	char response[256];
-	ec_command(0x3E0C, 0, buffer, 12, response, 256);
+	ECSendCommandLPCv3(0x3E0C, 0, buffer, 12, response, 256);
 	return EFI_ABORTED;
 }
