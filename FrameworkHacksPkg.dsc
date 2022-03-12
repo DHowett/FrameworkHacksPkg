@@ -27,7 +27,7 @@
   DebugPrintErrorLevelLib|MdePkg/Library/BaseDebugPrintErrorLevelLib/BaseDebugPrintErrorLevelLib.inf
   PostCodeLib|MdePkg/Library/BasePostCodeLibPort80/BasePostCodeLibPort80.inf
   PcdLib|MdePkg/Library/BasePcdLibNull/BasePcdLibNull.inf
-  TimerLib|MdePkg/Library/BaseTimerLibNullTemplate/BaseTimerLibNullTemplate.inf
+  TimerLib|UefiCpuPkg/Library/CpuTimerLib/BaseCpuTimerLib.inf
   CrosECLib|FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
 
 !include MdePkg/MdeLibs.dsc.inc
