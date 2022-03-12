@@ -34,4 +34,4 @@
 
 [Components]
   FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
-  FrameworkHacksPkg/FrameworkKeyMapDriver/FrameworkKeyMapDriver.inf
+  FrameworkHacksPkg/Drivers/FrameworkKeyMapDriver/FrameworkKeyMapDriver.inf
