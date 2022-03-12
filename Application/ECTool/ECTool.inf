@@ -38,3 +38,5 @@
   gEfiComponentName2ProtocolGuid                          ## SOMETIMES_CONSUMES
   gEfiUnicodeCollation2ProtocolGuid                       ## CONSUMES
   gEfiDevicePathProtocolGuid                              ## CONSUMES
+  gEfiShellProtocolGuid                                   ## CONSUMES
+  gEfiShellParametersProtocolGuid                         ## CONSUMES
