@@ -4,4 +4,8 @@
   PACKAGE_GUID      = 102A668A-643C-11EC-9A1D-1F26423C9971
   PACKAGE_VERSION   = 1.0
 
-[Includes] Include
+[Includes]
+  Include
+
+[LibraryClasses]
+  CrosECLib|Include/Library/CrosECLib.h

@@ -1,0 +1,19 @@
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = CrosECLib
+  FILE_GUID                      = d8558eb3-73c3-49ab-8020-80f920b3945c
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = CrosECLib
+  VALID_ARCHITECTURES            = X64
+
+[Sources]
+  EC.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  FrameworkHacksPkg/FrameworkHacksPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  TimerLib

@@ -28,8 +28,10 @@
   PostCodeLib|MdePkg/Library/BasePostCodeLibPort80/BasePostCodeLibPort80.inf
   PcdLib|MdePkg/Library/BasePcdLibNull/BasePcdLibNull.inf
   TimerLib|MdePkg/Library/BaseTimerLibNullTemplate/BaseTimerLibNullTemplate.inf
+  CrosECLib|FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
 
 !include MdePkg/MdeLibs.dsc.inc
 
 [Components]
+  FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
   FrameworkHacksPkg/FrameworkKeyMapDriver/FrameworkKeyMapDriver.inf

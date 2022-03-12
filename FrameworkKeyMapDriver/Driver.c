@@ -1,5 +1,5 @@
 #include <Uefi.h>
-#include "EC.h"
+#include <Library/CrosECLib.h>
 
 EFI_STATUS
 EFIAPI

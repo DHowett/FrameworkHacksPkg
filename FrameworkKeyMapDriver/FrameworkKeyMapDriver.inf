@@ -8,12 +8,13 @@
 
 [Sources]
   Driver.c
-  EC.c
 
 [Packages]
   MdePkg/MdePkg.dec
+  FrameworkHacksPkg/FrameworkHacksPkg.dec
 
 [LibraryClasses]
   BaseLib
   TimerLib
   UefiDriverEntryPoint
+  CrosECLib

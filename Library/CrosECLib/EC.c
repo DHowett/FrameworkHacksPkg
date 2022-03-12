@@ -1,7 +1,7 @@
 #include <Uefi.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/TimerLib.h>
-#include "EC.h"
+#include <Library/CrosECLib.h>
 
 #define memcpy CopyMem
 
