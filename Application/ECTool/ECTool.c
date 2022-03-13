@@ -1,7 +1,7 @@
-#include <Library/UefiLib.h>
+#include <Library/CrosECLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiBootServicesTableLib.h>
-#include <Library/CrosECLib.h>
+#include <Library/UefiLib.h>
 
 #include <Protocol/Shell.h>
 #include <Protocol/ShellParameters.h>
@@ -52,24 +52,17 @@ struct ec_params_flash_write {
 	/* Followed by data to write */
 } __ec_align4;
 
-UINTN              Argc;
-CHAR16             **Argv;
-EFI_SHELL_PROTOCOL *mShellProtocol = NULL;
+UINTN Argc;
+CHAR16** Argv;
+EFI_SHELL_PROTOCOL* mShellProtocol = NULL;
 
 EFI_STATUS
-GetArg (
-  VOID
-  )
-{
-	EFI_STATUS                     Status;
-	EFI_SHELL_PARAMETERS_PROTOCOL  *ShellParameters;
+GetArg(VOID) {
+	EFI_STATUS Status;
+	EFI_SHELL_PARAMETERS_PROTOCOL* ShellParameters;
 
-	Status = gBS->HandleProtocol(
-		gImageHandle,
-		&gEfiShellParametersProtocolGuid,
-		(VOID **)&ShellParameters
-	);
-	if (EFI_ERROR (Status)) {
+	Status = gBS->HandleProtocol(gImageHandle, &gEfiShellParametersProtocolGuid, (VOID**)&ShellParameters);
+	if(EFI_ERROR(Status)) {
 		return Status;
 	}
 
@@ -83,9 +76,9 @@ EFI_STATUS DumpFlash() {
 	int rv = 0;
 
 	char flashNotify;
-	flashNotify = 1; // Lock down for flashing
+	flashNotify = 1;  // Lock down for flashing
 	rv = ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
-	flashNotify = 0; // Enable SPI access
+	flashNotify = 0;  // Enable SPI access
 	rv = ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
 	if(rv < 0) {
 		Print(L"Failed to unlock flash: %d\n", rv);
@@ -101,7 +94,7 @@ EFI_STATUS DumpFlash() {
 		r.offset = i;
 		r.size = MIN(maxsize, 1048576 - i);
 		rv = ECSendCommandLPCv3(EC_CMD_FLASH_READ, 0, &r, sizeof(r), FlashBuffer + i, r.size);
-		if (rv < 0) {
+		if(rv < 0) {
 			Print(L"\nEC Error reading offset %u: %d\n", i, rv);
 			break;
 		}
@@ -110,15 +103,15 @@ EFI_STATUS DumpFlash() {
 	Print(L"\n");
 
 	// re-lock flash
-	flashNotify = 2; // Flash done
+	flashNotify = 2;  // Flash done
 	ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
-	flashNotify = 3; // SPI access done
+	flashNotify = 3;  // SPI access done
 	int lrv = ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
 	if(lrv < 0) {
 		Print(L"Failed to re-lock flash: %d\n", lrv);
 	}
 
-	if (rv >= 0) {
+	if(rv >= 0) {
 		mShellProtocol->CreateFile(L"fs0:\\flash.bin", 0, &File);
 		UINTN BufSz = 1048576;
 		mShellProtocol->WriteFile(File, &BufSz, FlashBuffer);
@@ -132,13 +125,13 @@ EFI_STATUS DumpFlash() {
 
 EFI_STATUS
 EFIAPI
-UefiMain(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE *SystemTable) {
+UefiMain(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* SystemTable) {
 	EFI_STATUS Status = EFI_SUCCESS;
 
 	GetArg();
 
 	Status = gBS->LocateProtocol(&gEfiShellProtocolGuid, NULL, (VOID**)&mShellProtocol);
-	if (EFI_ERROR(Status)) {
+	if(EFI_ERROR(Status)) {
 		return Status;
 	}
 
