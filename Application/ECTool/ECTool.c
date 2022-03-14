@@ -1,3 +1,4 @@
+#include <Library/BaseMemoryLib.h>
 #include <Library/CrosECLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiBootServicesTableLib.h>
@@ -123,6 +124,34 @@ EFI_STATUS DumpFlash() {
 	return EFI_SUCCESS;
 }
 
+EFI_STATUS cmd_version(int argc, CHAR16** argv) {
+#define EC_CMD_GET_BUILD_INFO 0x0004
+	char buf[248];
+	ZeroMem(buf, 248);
+	int rv = ECSendCommandLPCv3(EC_CMD_GET_BUILD_INFO, 0, NULL, 0, buf, 248);
+	if(rv < 0) {
+		return EFI_UNSUPPORTED;
+	}
+	AsciiPrint("Build: %a\n", buf);
+	return 0;
+}
+
+EFI_STATUS cmd_flashread(int argc, CHAR16** argv) {
+	return DumpFlash();
+}
+
+typedef EFI_STATUS (*command_handler)(int argc, CHAR16** argv);
+
+struct comspec {
+	CHAR16* name;
+	command_handler handler;
+};
+
+static struct comspec commands[] = {
+	{L"version", cmd_version},
+	{L"flashread", cmd_flashread},
+};
+
 EFI_STATUS
 EFIAPI
 UefiMain(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* SystemTable) {
@@ -132,9 +161,23 @@ UefiMain(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* SystemTable) {
 
 	Status = gBS->LocateProtocol(&gEfiShellProtocolGuid, NULL, (VOID**)&mShellProtocol);
 	if(EFI_ERROR(Status)) {
+		Print(L"Could not locate shell protocol...\n");
 		return Status;
 	}
 
-	DumpFlash();
+	if(Argc < 2) {
+		Print(L"Invocation: ectool <command> args\n\nCommands:\n");
+		for(int i = 0; i < ARRAY_SIZE(commands); ++i) {
+			Print(L"- %s\n", commands[i].name);
+		}
+		return 1;
+	}
+
+	for(int i = 0; i < ARRAY_SIZE(commands); ++i) {
+		if(0 == StrCmp(Argv[1], commands[i].name)) {
+			return commands[i].handler(Argc - 1, Argv + 1);
+		}
+	}
+
 	return Status;
 }
