@@ -7,6 +7,7 @@
   LIBRARY_CLASS                  = CrosECLibNull
   VALID_ARCHITECTURES            = X64
   CONSTRUCTOR                    = CrosECLibNullConstructor
+  DESTRUCTOR                     = CrosECLibNullDestructor
 
 [Sources]
   ECNull.c

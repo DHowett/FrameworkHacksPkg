@@ -108,10 +108,18 @@ int ECSendCommandLPCv3(int command, int version, const void* outdata, int outsiz
 	return -EC_RES_INVALID_COMMAND;
 }
 
-RETURN_STATUS
+EFI_STATUS
 EFIAPI
 CrosECLibNullConstructor() {
 	gMutableFlash = (UINT8*)AllocatePool(gFlashLen);
 	SetMem(gMutableFlash, gFlashLen, 0xFF);
-	return RETURN_SUCCESS;
+	return EFI_SUCCESS;
+}
+
+EFI_STATUS
+EFIAPI
+CrosECLibNullDestructor() {
+	FreePool(gMutableFlash);
+	gMutableFlash = NULL;
+	return EFI_SUCCESS;
 }
