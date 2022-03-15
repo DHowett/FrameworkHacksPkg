@@ -3,14 +3,61 @@
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
+#include <Library/UefiShellLib/UefiShellLib.h>
 
 #include <Protocol/Shell.h>
 #include <Protocol/ShellParameters.h>
 
+#include "FWUpdate.h"
 
 UINTN Argc;
 CHAR16** Argv;
 EFI_SHELL_PROTOCOL* mShellProtocol = NULL;
+
+enum ec_status flash_read(int offset, int size, char* buffer) {
+	struct ec_params_flash_read p;
+	const int chunk = EC_LPC_HOST_PACKET_SIZE;
+	for(int i = 0; i < size; i += chunk) {
+		p.offset = offset + i;
+		p.size = MIN(size - i, chunk);
+		int rv = ECSendCommandLPCv3(EC_CMD_FLASH_READ, 0, &p, sizeof(p), &buffer[i], p.size);
+		if(rv < 0) {
+			return rv;
+		}
+	}
+	return 0;
+}
+
+enum ec_status flash_write(int offset, int size, char* buffer) {
+	struct ec_response_flash_info_1 flashInfo;
+	int rv = ECSendCommandLPCv3(EC_CMD_FLASH_INFO, 1, NULL, 0, &flashInfo, sizeof(flashInfo));
+	if(rv < 0) {
+		Print(L"Failed to query flash info\n");
+		return rv;
+	}
+
+	int step = (EC_LPC_HOST_PACKET_SIZE / flashInfo.write_ideal_size) * flashInfo.write_ideal_size;
+	char commandBuffer[EC_LPC_HOST_PACKET_SIZE] = {0};
+	struct ec_params_flash_write* p = (struct ec_params_flash_write*)&commandBuffer[0];
+	for(int i = 0; i < size; i += step) {
+		p->offset = offset + i;
+		p->size = MIN(size - i, step);
+		CopyMem(p + 1, buffer + i, p->size);
+		rv = ECSendCommandLPCv3(EC_CMD_FLASH_WRITE, 1, p, sizeof(*p) + p->size, NULL, 0);
+		if(rv < 0) {
+			Print(L"*** FLASH WRITE **FAILED** AT OFFSET %x\n", p->offset);
+			return rv;
+		}
+	}
+	return 0;
+}
+
+enum ec_status flash_erase(int offset, int size) {
+	struct ec_params_flash_erase p;
+	p.offset = offset;
+	p.size = size;
+	return ECSendCommandLPCv3(EC_CMD_FLASH_ERASE, 0, &p, sizeof(p), NULL, 0);
+}
 
 EFI_STATUS
 GetArg(VOID) {
@@ -27,7 +74,36 @@ GetArg(VOID) {
 	return EFI_SUCCESS;
 }
 
-EFI_STATUS DumpFlash() {
+EFI_STATUS cmd_version(int argc, CHAR16** argv) {
+	char buf[248];
+	ZeroMem(buf, 248);
+	int rv = ECSendCommandLPCv3(EC_CMD_GET_BUILD_INFO, 0, NULL, 0, buf, 248);
+	if(rv < 0) {
+		return EFI_UNSUPPORTED;
+	}
+	AsciiPrint("Build: %a\n", buf);
+	return 0;
+}
+
+EFI_STATUS cmd_flashread(int argc, CHAR16** argv) {
+	if(argc < 4) {
+		Print(L"ectool flashread OFFSET SIZE FILE\n");
+		return 1;
+	}
+
+	UINTN offset, size;
+	CHAR16* path = argv[3];
+
+	if((offset = ShellStrToUintn(argv[1])) < 0) {
+		Print(L"invalid offset\n");
+		return 1;
+	}
+
+	if((size = ShellStrToUintn(argv[2])) < 0) {
+		Print(L"invalid size\n");
+		return 1;
+	}
+
 	SHELL_FILE_HANDLE File;
 	int rv = 0;
 
@@ -41,22 +117,13 @@ EFI_STATUS DumpFlash() {
 		return EFI_UNSUPPORTED;
 	}
 
-	char* FlashBuffer = AllocatePool(1048576);
-	int i = 0;
-	const int maxsize = EC_LPC_HOST_PACKET_SIZE - sizeof(struct ec_host_response);
-	struct ec_params_flash_read r;
-	while(i < 1048576) {
-		Print(L".");
-		r.offset = i;
-		r.size = MIN(maxsize, 1048576 - i);
-		rv = ECSendCommandLPCv3(EC_CMD_FLASH_READ, 0, &r, sizeof(r), FlashBuffer + i, r.size);
-		if(rv < 0) {
-			Print(L"\nEC Error reading offset %u: %d\n", i, rv);
-			break;
-		}
-		i += r.size;
+	char* FlashBuffer = AllocatePool(size);
+	rv = flash_read(offset, size, FlashBuffer);
+	if(rv < 0) {
+		Print(L"Failed to read: %d\n", rv);
+		FreePool(FlashBuffer);
+		return 1;
 	}
-	Print(L"\n");
 
 	// re-lock flash
 	flashNotify = 2;  // Flash done
@@ -68,31 +135,70 @@ EFI_STATUS DumpFlash() {
 	}
 
 	if(rv >= 0) {
-		mShellProtocol->CreateFile(L"fs0:\\flash.bin", 0, &File);
-		UINTN BufSz = 1048576;
-		mShellProtocol->WriteFile(File, &BufSz, FlashBuffer);
-		mShellProtocol->CloseFile(File);
-		Print(L"Dumped to fs0:\\flash.bin\n");
+		int s = ShellOpenFileByName(path, &File,
+		                            EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
+		if(EFI_ERROR(s)) {
+			Print(L"Failed to open `%s': %r\n", path, s);
+			return 1;
+		}
+		ShellWriteFile(File, &size, FlashBuffer);
+		ShellCloseFile(&File);
+		Print(L"Dumped %d bytes to %s\n", size, path);
 	}
 
 	FreePool(FlashBuffer);
 	return EFI_SUCCESS;
 }
 
-EFI_STATUS cmd_version(int argc, CHAR16** argv) {
-#define EC_CMD_GET_BUILD_INFO 0x0004
-	char buf[248];
-	ZeroMem(buf, 248);
-	int rv = ECSendCommandLPCv3(EC_CMD_GET_BUILD_INFO, 0, NULL, 0, buf, 248);
-	if(rv < 0) {
-		return EFI_UNSUPPORTED;
+EFI_STATUS cmd_fwup2(int argc, CHAR16** argv) {
+	EFI_STATUS Status = EFI_SUCCESS;
+	SHELL_FILE_HANDLE FirmwareFile = NULL;
+	EFI_FILE_INFO* FileInfo = NULL;
+
+	if(argc < 2) {
+		Print(L"ectool fwup2 FILE\n");
+		return 1;
 	}
-	AsciiPrint("Build: %a\n", buf);
-	return 0;
+
+	Status = CheckReadyForECFlash();
+	if(EFI_ERROR(Status)) {
+		Print(L"System not ready\n");
+		goto Out;
+	}
+
+	Status = ShellOpenFileByName(argv[1], &FirmwareFile, EFI_FILE_MODE_READ, 0);
+	if(EFI_ERROR(Status)) {
+		Print(L"Failed to open `%s': %r\n", argv[1], Status);
+		goto Out;
+	}
+
+	FileInfo = ShellGetFileInfo(FirmwareFile);
+
+	if(FileInfo->FileSize != (512 * 1024)) {
+		Print(L"Firmware image is %d bytes (expected %d).\n", FileInfo->FileSize, (512 * 1024));
+		Status = EFI_UNSUPPORTED;
+		goto Out;
+	}
+
+	Print(L"*** STARTING FLASH (LAST CHANCE TO CANCEL)\n");
+	for(int i = 7; i > 0; i--) {
+		Print(L"%d...", i);
+		gBS->Stall(1000000);
+	}
+	Print(L"\n");
+
+Out:
+	if(FirmwareFile) {
+		ShellCloseFile(&FirmwareFile);
+	}
+	SHELL_FREE_NON_NULL(FileInfo);
+	return Status;
 }
 
-EFI_STATUS cmd_flashread(int argc, CHAR16** argv) {
-	return DumpFlash();
+EFI_STATUS cmd_fwc(int argc, CHAR16** argv) {
+	EFI_STATUS Status = CheckReadyForECFlash();
+	Print(L"Readiness: %d\n", Status);
+	return Status;
 }
 
 typedef EFI_STATUS (*command_handler)(int argc, CHAR16** argv);
@@ -105,6 +211,9 @@ struct comspec {
 static struct comspec commands[] = {
 	{L"version", cmd_version},
 	{L"flashread", cmd_flashread},
+	{L"fwup2", cmd_fwup2},
+	//{L"str", cmd_str},
+	{L"fwc", cmd_fwc},
 };
 
 EFI_STATUS
@@ -112,13 +221,13 @@ EFIAPI
 UefiMain(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* SystemTable) {
 	EFI_STATUS Status = EFI_SUCCESS;
 
-	GetArg();
-
-	Status = gBS->LocateProtocol(&gEfiShellProtocolGuid, NULL, (VOID**)&mShellProtocol);
+	Status = ShellInitialize();
 	if(EFI_ERROR(Status)) {
-		Print(L"Could not locate shell protocol...\n");
+		Print(L"Failed to initialize shell lib: %x\n", Status);
 		return Status;
 	}
+
+	GetArg();
 
 	if(Argc < 2) {
 		Print(L"Invocation: ectool <command> args\n\nCommands:\n");

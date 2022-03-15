@@ -8,10 +8,13 @@
 
 [Sources]
   ECTool.c
+  FWUpdate.c
   ECTool.uni
 
 [Packages]
   MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  ShellPkg/ShellPkg.dec
   FrameworkHacksPkg/FrameworkHacksPkg.dec
 
 [LibraryClasses]
@@ -28,6 +31,8 @@
   FileHandleLib
   PrintLib
   CrosECLib
+  HiiLib # <- from ShellLib
+  ShellLib
 
 [Protocols]
   gEfiSimpleTextInputExProtocolGuid                       ## CONSUMES

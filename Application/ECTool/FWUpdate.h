@@ -1,0 +1,1 @@
+EFI_STATUS CheckReadyForECFlash();

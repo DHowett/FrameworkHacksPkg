@@ -31,7 +31,11 @@
 
   CrosECLib|FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
 
+  ShellLib|ShellPkg/Library/UefiShellLib/UefiShellLib.inf
+  HiiLib|MdeModulePkg/Library/UefiHiiLib/UefiHiiLib.inf
   FileHandleLib|MdePkg/Library/UefiFileHandleLib/UefiFileHandleLib.inf
+  SortLib|MdeModulePkg/Library/UefiSortLib/UefiSortLib.inf
+  UefiHiiServicesLib|MdeModulePkg/Library/UefiHiiServicesLib/UefiHiiServicesLib.inf
 
 !include MdePkg/MdeLibs.dsc.inc
 
