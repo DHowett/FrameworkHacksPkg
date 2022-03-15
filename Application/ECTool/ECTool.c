@@ -14,16 +14,22 @@ UINTN Argc;
 CHAR16** Argv;
 EFI_SHELL_PROTOCOL* mShellProtocol = NULL;
 
+#define G_EC_MAX_REQUEST (EC_LPC_HOST_PACKET_SIZE - sizeof(struct ec_host_request))
+#define G_EC_MAX_RESPONSE (EC_LPC_HOST_PACKET_SIZE - sizeof(struct ec_host_response))
+
 enum ec_status flash_read(int offset, int size, char* buffer) {
 	struct ec_params_flash_read p;
-	const int chunk = EC_LPC_HOST_PACKET_SIZE;
+	const int chunk = G_EC_MAX_RESPONSE;
+	char buf[G_EC_MAX_RESPONSE] = {0};
 	for(int i = 0; i < size; i += chunk) {
 		p.offset = offset + i;
 		p.size = MIN(size - i, chunk);
-		int rv = ECSendCommandLPCv3(EC_CMD_FLASH_READ, 0, &p, sizeof(p), &buffer[i], p.size);
+		int rv = ECSendCommandLPCv3(EC_CMD_FLASH_READ, 0, &p, sizeof(p), buf, p.size);
 		if(rv < 0) {
+			Print(L"*** FLASH READ **FAILED** AT OFFSET %x: %d\n", p.offset, rv);
 			return rv;
 		}
+		CopyMem(buffer + i, buf, p.size);
 	}
 	return 0;
 }
@@ -36,8 +42,8 @@ enum ec_status flash_write(int offset, int size, char* buffer) {
 		return rv;
 	}
 
-	int step = (EC_LPC_HOST_PACKET_SIZE / flashInfo.write_ideal_size) * flashInfo.write_ideal_size;
-	char commandBuffer[EC_LPC_HOST_PACKET_SIZE] = {0};
+	int step = (G_EC_MAX_REQUEST / flashInfo.write_ideal_size) * flashInfo.write_ideal_size;
+	char commandBuffer[G_EC_MAX_REQUEST] = {0};
 	struct ec_params_flash_write* p = (struct ec_params_flash_write*)&commandBuffer[0];
 	for(int i = 0; i < size; i += step) {
 		p->offset = offset + i;
@@ -45,7 +51,7 @@ enum ec_status flash_write(int offset, int size, char* buffer) {
 		CopyMem(p + 1, buffer + i, p->size);
 		rv = ECSendCommandLPCv3(EC_CMD_FLASH_WRITE, 1, p, sizeof(*p) + p->size, NULL, 0);
 		if(rv < 0) {
-			Print(L"*** FLASH WRITE **FAILED** AT OFFSET %x\n", p->offset);
+			Print(L"*** FLASH WRITE **FAILED** AT OFFSET %x: %d\n", p->offset, rv);
 			return rv;
 		}
 	}
