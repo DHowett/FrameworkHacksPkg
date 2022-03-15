@@ -1,0 +1,20 @@
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = CrosECLibNull
+  FILE_GUID                      = D8D6C902-86E7-4213-970B-AA67B35B02DF
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = CrosECLibNull
+  VALID_ARCHITECTURES            = X64
+  CONSTRUCTOR                    = CrosECLibNullConstructor
+
+[Sources]
+  ECNull.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  FrameworkHacksPkg/FrameworkHacksPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
