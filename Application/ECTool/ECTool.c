@@ -7,51 +7,6 @@
 #include <Protocol/Shell.h>
 #include <Protocol/ShellParameters.h>
 
-#define EC_CMD_FLASH_INFO 0x0010
-#define EC_VER_FLASH_INFO 2
-
-typedef UINT8 uint8_t;
-typedef UINT16 uint16_t;
-typedef UINT32 uint32_t;
-
-struct ec_response_flash_info_1 {
-	/* Version 0 fields; see above for description */
-	uint32_t flash_size;
-	uint32_t write_block_size;
-	uint32_t erase_block_size;
-	uint32_t protect_block_size;
-
-	/* Version 1 adds these fields: */
-	uint32_t write_ideal_size;
-	uint32_t flags;
-} __ec_align4;
-
-/*
- * Read flash
- *
- * Response is params.size bytes of data.
- */
-#define EC_CMD_FLASH_READ 0x0011
-
-/**
- * struct ec_params_flash_read - Parameters for the flash read command.
- * @offset: Byte offset to read.
- * @size: Size to read in bytes.
- */
-struct ec_params_flash_read {
-	uint32_t offset;
-	uint32_t size;
-} __ec_align4;
-
-/* Write flash */
-#define EC_CMD_FLASH_WRITE 0x0012
-#define EC_VER_FLASH_WRITE 1
-
-struct ec_params_flash_write {
-	uint32_t offset;
-	uint32_t size;
-	/* Followed by data to write */
-} __ec_align4;
 
 UINTN Argc;
 CHAR16** Argv;

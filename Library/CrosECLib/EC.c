@@ -5,6 +5,9 @@
 
 #define memcpy CopyMem
 
+typedef UINT16 USHORT;
+typedef UINT8  UCHAR;
+
 static __inline void outb(unsigned char __val, unsigned short __port)
 {
 	__asm__ volatile ("outb %0,%1" : : "a" (__val), "dN" (__port));
