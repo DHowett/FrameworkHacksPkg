@@ -110,20 +110,29 @@ EFI_STATUS cmd_flashread(int argc, CHAR16** argv) {
 		return 1;
 	}
 
+	char* FlashBuffer = AllocatePool(size);
+	if(!FlashBuffer) {
+		Print(L"Failed to allocate flash read buffer.\n");
+		return 1;
+	}
+
 	SHELL_FILE_HANDLE File;
 	int rv = 0;
 
 	char flashNotify;
 	flashNotify = 1;  // Lock down for flashing
 	rv = ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
-	flashNotify = 0;  // Enable SPI access
-	rv = ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
 	if(rv < 0) {
 		Print(L"Failed to unlock flash: %d\n", rv);
 		return EFI_UNSUPPORTED;
 	}
+	flashNotify = 0;  // Enable SPI access
+	rv = ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
+	if(rv < 0) {
+		Print(L"Failed to enable SPI: %d\n", rv);
+		return EFI_UNSUPPORTED;
+	}
 
-	char* FlashBuffer = AllocatePool(size);
 	rv = flash_read(offset, size, FlashBuffer);
 	if(rv < 0) {
 		Print(L"Failed to read: %d\n", rv);
@@ -133,22 +142,33 @@ EFI_STATUS cmd_flashread(int argc, CHAR16** argv) {
 
 	// re-lock flash
 	flashNotify = 2;  // Flash done
-	ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
-	flashNotify = 3;  // SPI access done
 	int lrv = ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
 	if(lrv < 0) {
 		Print(L"Failed to re-lock flash: %d\n", lrv);
 	}
+	flashNotify = 3;  // SPI access done
+	lrv = ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
+	if(lrv < 0) {
+		Print(L"Failed to toggle SPI: %d\n", lrv);
+	}
 
 	if(rv >= 0) {
-		int s = ShellOpenFileByName(path, &File,
+		EFI_STATUS s = ShellOpenFileByName(path, &File,
 		                            EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
 		if(EFI_ERROR(s)) {
 			Print(L"Failed to open `%s': %r\n", path, s);
 			return 1;
 		}
-		ShellWriteFile(File, &size, FlashBuffer);
-		ShellCloseFile(&File);
+		s = ShellWriteFile(File, &size, FlashBuffer);
+		if(EFI_ERROR(s)) {
+			Print(L"Failed to write `%s': %r\n", path, s);
+			// fall through
+		}
+		s = ShellCloseFile(&File);
+		if(EFI_ERROR(s)) {
+			Print(L"Failed to close `%s': %r\n", path, s);
+			// fall through
+		}
 		Print(L"Dumped %d bytes to %s\n", size, path);
 	}
 
