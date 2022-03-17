@@ -39,7 +39,8 @@ static const CHAR16* mEcErrorMessages[] = {
 };
 
 static void PrintECResponse(int rv) {
-	if(rv >= 0) return;
+	if(rv >= 0)
+		return;
 	if(rv < -EECRESULT)
 		rv += EECRESULT;
 	Print(L"%d (%s)", -rv, rv >= -EC_RES_DUP_UNAVAILABLE ? mEcErrorMessages[-rv] : L"<unknown error>");
@@ -51,11 +52,11 @@ static void PrintECResponse(int rv) {
 
 enum ec_flash_notified_flags {
 	/* Enable/Disable power button pulses for x86 devices */
-	FLASH_ACCESS_SPI	  = 0,
-	FLASH_FIRMWARE_START  = BIT(0),
-	FLASH_FIRMWARE_DONE   = BIT(1),
+	FLASH_ACCESS_SPI = 0,
+	FLASH_FIRMWARE_START = BIT(0),
+	FLASH_FIRMWARE_DONE = BIT(1),
 	FLASH_ACCESS_SPI_DONE = 3,
-	FLASH_FLAG_PD         = BIT(4),
+	FLASH_FLAG_PD = BIT(4),
 };
 
 struct ec_params_flash_notified {
@@ -64,7 +65,7 @@ struct ec_params_flash_notified {
 } __ec_align1;
 /// End Framework Specific
 
-#define G_EC_MAX_REQUEST (EC_LPC_HOST_PACKET_SIZE - sizeof(struct ec_host_request))
+#define G_EC_MAX_REQUEST  (EC_LPC_HOST_PACKET_SIZE - sizeof(struct ec_host_request))
 #define G_EC_MAX_RESPONSE (EC_LPC_HOST_PACKET_SIZE - sizeof(struct ec_host_response))
 
 enum ec_status flash_read(int offset, int size, char* buffer) {
@@ -237,7 +238,7 @@ Out:
 	return Status;
 }
 
-#define FLASH_BASE 0x0 // 0x80000
+#define FLASH_BASE    0x0  // 0x80000
 #define FLASH_RO_BASE 0x0
 #define FLASH_RO_SIZE 0x3C000
 #define FLASH_RW_BASE 0x40000
@@ -254,7 +255,8 @@ EFI_STATUS cmd_fwup2(int argc, CHAR16** argv) {
 	struct ec_params_flash_notified FlashNotifyParams = {0};
 
 	if(argc < 2) {
-		Print(L"ectool reflash FILE\n\nAttempts to safely reflash the Framework Laptop's EC\nPreserves flash region 3C000-3FFFF and 79000-7FFFF.\n");
+		Print(L"ectool reflash FILE\n\nAttempts to safely reflash the Framework Laptop's EC\nPreserves flash "
+		      L"region 3C000-3FFFF and 79000-7FFFF.\n");
 		return 1;
 	}
 
@@ -304,7 +306,7 @@ EFI_STATUS cmd_fwup2(int argc, CHAR16** argv) {
 	for(int i = 7; i > 0; i--) {
 		Print(L"%d...", i);
 		gBS->Stall(1000000);
-		EFI_STATUS KeyStatus = gST->ConIn->ReadKeyStroke (gST->ConIn, &Key);
+		EFI_STATUS KeyStatus = gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
 		if(!EFI_ERROR(KeyStatus)) {
 			Print(L"\nABORTED!\n");
 			return EFI_ABORTED;
