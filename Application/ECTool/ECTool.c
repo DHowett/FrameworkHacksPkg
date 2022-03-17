@@ -14,6 +14,56 @@ UINTN Argc;
 CHAR16** Argv;
 EFI_SHELL_PROTOCOL* mShellProtocol = NULL;
 
+static const CHAR16* mEcErrorMessages[] = {
+	L"success",
+	L"invalid command",
+	L"error",
+	L"invalid param",
+	L"access denied",
+	L"invalid response",
+	L"invalid version",
+	L"invalid checksum",
+	L"in progress",
+	L"unavailable",
+	L"timeout",
+	L"overflow",
+	L"invalid header",
+	L"request truncated",
+	L"response too big",
+	L"bus error",
+	L"busy",
+	L"invalid header version",
+	L"invalid header crc",
+	L"invalid data crc",
+	L"dup unavailable",
+};
+
+static void PrintECResponse(int rv) {
+	if(rv >= 0) return;
+	if(rv < -EECRESULT)
+		rv += EECRESULT;
+	Print(L"%d (%s)", -rv, rv >= -EC_RES_DUP_UNAVAILABLE ? mEcErrorMessages[-rv] : L"<unknown error>");
+}
+
+/// Framework Specific
+/* Configure the behavior of the flash notify */
+#define EC_CMD_FLASH_NOTIFIED 0x3E01
+
+enum ec_flash_notified_flags {
+	/* Enable/Disable power button pulses for x86 devices */
+	FLASH_ACCESS_SPI	  = 0,
+	FLASH_FIRMWARE_START  = BIT(0),
+	FLASH_FIRMWARE_DONE   = BIT(1),
+	FLASH_ACCESS_SPI_DONE = 3,
+	FLASH_FLAG_PD         = BIT(4),
+};
+
+struct ec_params_flash_notified {
+	/* See enum ec_flash_notified_flags */
+	uint8_t flags;
+} __ec_align1;
+/// End Framework Specific
+
 #define G_EC_MAX_REQUEST (EC_LPC_HOST_PACKET_SIZE - sizeof(struct ec_host_request))
 #define G_EC_MAX_RESPONSE (EC_LPC_HOST_PACKET_SIZE - sizeof(struct ec_host_response))
 
@@ -176,13 +226,24 @@ EFI_STATUS cmd_flashread(int argc, CHAR16** argv) {
 	return EFI_SUCCESS;
 }
 
+#define FLASH_BASE 0x80000
+#define FLASH_RO_BASE 0x0
+#define FLASH_RO_SIZE 0x3C000
+#define FLASH_RW_BASE 0x40000
+#define FLASH_RW_SIZE 0x39000
 EFI_STATUS cmd_fwup2(int argc, CHAR16** argv) {
 	EFI_STATUS Status = EFI_SUCCESS;
 	SHELL_FILE_HANDLE FirmwareFile = NULL;
 	EFI_FILE_INFO* FileInfo = NULL;
+	EFI_INPUT_KEY Key = {0};
+	int rv = 0;
+	char* FirmwareBuffer = NULL;
+	char* VerifyBuffer = NULL;
+	UINTN ReadSize = 0;
+	struct ec_params_flash_notified FlashNotifyParams = {0};
 
 	if(argc < 2) {
-		Print(L"ectool fwup2 FILE\n");
+		Print(L"ectool reflash FILE\n\nAttempts to safely reflash the Framework Laptop's EC\nPreserves flash region 3C000-3FFFF and 79000-7FFFF.\n");
 		return 1;
 	}
 
@@ -206,18 +267,130 @@ EFI_STATUS cmd_fwup2(int argc, CHAR16** argv) {
 		goto Out;
 	}
 
-	Print(L"*** STARTING FLASH (LAST CHANCE TO CANCEL)\n");
+	FirmwareBuffer = (char*)AllocatePool(FileInfo->FileSize);
+	VerifyBuffer = (char*)AllocatePool(FileInfo->FileSize);
+	if(!FirmwareBuffer || !VerifyBuffer) {
+		Print(L"Failed to allocate an arena for the firmware image or verification buffer\n");
+		Status = EFI_NOT_READY;
+		goto Out;
+	}
+
+	ReadSize = FileInfo->FileSize;
+	Status = ShellReadFile(FirmwareFile, &ReadSize, FirmwareBuffer);
+	if(EFI_ERROR(Status)) {
+		Print(L"Failed to read firmware: %r\n", Status);
+		goto Out;
+	}
+
+	if(ReadSize != FileInfo->FileSize) {
+		Print(L"Failed to read entire firmware image into memory.\n");
+		Status = EFI_END_OF_FILE;
+		goto Out;
+	}
+
+	Print(L"*** STARTING FLASH (PRESS ANY KEY TO CANCEL)\n");
+	Key.ScanCode = SCAN_NULL;
 	for(int i = 7; i > 0; i--) {
 		Print(L"%d...", i);
 		gBS->Stall(1000000);
+		EFI_STATUS KeyStatus = gST->ConIn->ReadKeyStroke (gST->ConIn, &Key);
+		if(!EFI_ERROR(KeyStatus)) {
+			Print(L"\nABORTED!\n");
+			return EFI_ABORTED;
+		}
 	}
 	Print(L"\n");
 
+	Status = CheckReadyForECFlash();
+	if(EFI_ERROR(Status)) {
+		Print(L"System not ready\n");
+		goto Out;
+	}
+
+	Print(L"Unlocking flash... ");
+	FlashNotifyParams.flags = FLASH_ACCESS_SPI;
+	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+	if(rv < 0)
+		goto EcOut;
+	FlashNotifyParams.flags = FLASH_FIRMWARE_START;
+	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+	if(rv < 0)
+		goto EcOut;
+	Print(L"OK\n");
+
+	Print(L"Erasing RO region... ");
+	rv = flash_erase(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE);
+	if(rv < 0)
+		goto EcOut;
+	Print(L"OK\n");
+
+	Print(L"Erasing RW region... ");
+	rv = flash_erase(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE);
+	if(rv < 0)
+		goto EcOut;
+	Print(L"OK\n");
+
+	Print(L"Writing RO region... ");
+	rv = flash_write(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE, FirmwareBuffer + FLASH_RO_BASE);
+	if(rv < 0)
+		goto EcOut;
+	Print(L"OK\n");
+
+	Print(L"Writing RW region... ");
+	rv = flash_write(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, FirmwareBuffer + FLASH_RW_BASE);
+	if(rv < 0)
+		goto EcOut;
+	Print(L"OK\n");
+
+	Print(L"Verifying: Read... ");
+
+	rv = flash_read(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE, VerifyBuffer + FLASH_RO_BASE);
+	if(rv < 0)
+		goto EcOut;
+	rv = flash_read(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, VerifyBuffer + FLASH_RW_BASE);
+	if(rv < 0)
+		goto EcOut;
+	Print(L"OK. Check... ");
+
+	if(CompareMem(VerifyBuffer + FLASH_RO_BASE, FirmwareBuffer + FLASH_RO_BASE, FLASH_RO_SIZE) == 0) {
+		Print(L"RO OK... ");
+	} else {
+		Print(L"RO FAIL! ");
+	}
+	if(CompareMem(VerifyBuffer + FLASH_RW_BASE, FirmwareBuffer + FLASH_RW_BASE, FLASH_RW_SIZE) == 0) {
+		Print(L"RW OK... ");
+	} else {
+		Print(L"RW FAIL! ");
+	}
+	Print(L"OK\n");
+
+	Print(L"Locking flash... ");
+	FlashNotifyParams.flags = FLASH_ACCESS_SPI_DONE;
+	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+	if(rv < 0)
+		goto EcOut;
+	FlashNotifyParams.flags = FLASH_FIRMWARE_DONE;
+	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+	if(rv < 0)
+		goto EcOut;
+	Print(L"OK\n");
+
+	Print(L"\nLooks like it worked?\nConsider running `ectool reboot` to reset the EC/AP.\n");
+
+EcOut:
+	if(rv < 0) {
+		PrintECResponse(rv);
+		Print(L"\n");
+		Print(L"*** YOUR COMPUTER MAY NO LONGER BOOT ***\n");
+		Status = EFI_DEVICE_ERROR;
+	}
 Out:
 	if(FirmwareFile) {
 		ShellCloseFile(&FirmwareFile);
 	}
 	SHELL_FREE_NON_NULL(FileInfo);
+	SHELL_FREE_NON_NULL(FirmwareBuffer);
+	SHELL_FREE_NON_NULL(VerifyBuffer);
 	return Status;
 }
 
@@ -225,6 +398,15 @@ EFI_STATUS cmd_fwc(int argc, CHAR16** argv) {
 	EFI_STATUS Status = CheckReadyForECFlash();
 	Print(L"Readiness: %d\n", Status);
 	return Status;
+}
+
+EFI_STATUS cmd_reboot(int argc, CHAR16** argv) {
+	struct ec_params_reboot_ec p;
+	p.cmd = EC_REBOOT_COLD;
+	p.flags = 0;
+	ECSendCommandLPCv3(EC_CMD_REBOOT_EC, 0, &p, sizeof(p), NULL, 0);
+	// UNREACHABLE ON FRAMEWORK LAPTOP
+	return EFI_SUCCESS;
 }
 
 typedef EFI_STATUS (*command_handler)(int argc, CHAR16** argv);
@@ -236,10 +418,10 @@ struct comspec {
 
 static struct comspec commands[] = {
 	{L"version", cmd_version},
+	{L"reboot", cmd_reboot},
 	{L"flashread", cmd_flashread},
-	{L"fwup2", cmd_fwup2},
+	{L"reflash", cmd_fwup2},
 	//{L"str", cmd_str},
-	{L"fwc", cmd_fwc},
 };
 
 EFI_STATUS
