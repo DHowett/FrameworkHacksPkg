@@ -431,6 +431,36 @@ EFI_STATUS cmd_reboot(int argc, CHAR16** argv) {
 	return Status;
 }
 
+EFI_STATUS cmd_console(int argc, CHAR16** argv) {
+	EFI_STATUS Status = EFI_SUCCESS;
+	struct ec_params_console_read_v1 p;
+	char buf[G_EC_MAX_RESPONSE] = {0};
+	int rv = 0;
+
+	rv = ECSendCommandLPCv3(EC_CMD_CONSOLE_SNAPSHOT, 0, NULL, 0, NULL, 0);
+	if(rv < 0)
+		goto EcOut;
+
+	p.subcmd = CONSOLE_READ_RECENT;
+	do {
+		rv = ECSendCommandLPCv3(EC_CMD_CONSOLE_READ, 1, &p, sizeof(p), buf, sizeof(buf));
+		if(rv < 0)
+			goto EcOut;
+
+		if(rv > 0 && buf[0])
+			Print(L"%a", buf);
+
+		p.subcmd = CONSOLE_READ_NEXT;
+	} while(rv > 0 && buf[0]);
+
+EcOut:
+	if(rv < 0) {
+		PrintECResponse(rv);
+		Status = EFI_DEVICE_ERROR;
+	}
+	return Status;
+}
+
 typedef EFI_STATUS (*command_handler)(int argc, CHAR16** argv);
 
 struct comspec {
@@ -443,6 +473,7 @@ static struct comspec commands[] = {
 	{L"reboot", cmd_reboot},
 	{L"flashread", cmd_flashread},
 	{L"reflash", cmd_fwup2},
+	{L"console", cmd_console},
 };
 
 EFI_STATUS
