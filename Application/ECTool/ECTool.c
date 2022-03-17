@@ -135,9 +135,12 @@ EFI_STATUS cmd_version(int argc, CHAR16** argv) {
 	ZeroMem(buf, 248);
 	int rv = ECSendCommandLPCv3(EC_CMD_GET_BUILD_INFO, 0, NULL, 0, buf, 248);
 	if(rv < 0) {
+		Print(L"Error: ");
+		PrintECResponse(rv);
+		Print(L"\n");
 		return EFI_UNSUPPORTED;
 	}
-	AsciiPrint("Build: %a\n", buf);
+	AsciiPrint("%a\n", buf);
 	return 0;
 }
 
