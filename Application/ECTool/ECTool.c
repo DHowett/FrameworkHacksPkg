@@ -408,12 +408,27 @@ Out:
 }
 
 EFI_STATUS cmd_reboot(int argc, CHAR16** argv) {
+	EFI_STATUS Status = EFI_SUCCESS;
 	struct ec_params_reboot_ec p;
+	int rv = 0;
+
 	p.cmd = EC_REBOOT_COLD;
 	p.flags = 0;
-	ECSendCommandLPCv3(EC_CMD_REBOOT_EC, 0, &p, sizeof(p), NULL, 0);
-	// UNREACHABLE ON FRAMEWORK LAPTOP
-	return EFI_SUCCESS;
+
+	if(argc > 1) {
+		if(StrCmp(argv[1], L"ro") == 0)
+			p.cmd = EC_REBOOT_JUMP_RO;
+		else if(StrCmp(argv[1], L"rw") == 0)
+			p.cmd = EC_REBOOT_JUMP_RW;
+	}
+
+	rv = ECSendCommandLPCv3(EC_CMD_REBOOT_EC, 0, &p, sizeof(p), NULL, 0);
+	// UNREACHABLE ON SUCCESS ON THE FRAMEWORK LAPTOP
+	if(rv < 0) {
+		PrintECResponse(rv);
+		Status = EFI_DEVICE_ERROR;
+	}
+	return Status;
 }
 
 typedef EFI_STATUS (*command_handler)(int argc, CHAR16** argv);
