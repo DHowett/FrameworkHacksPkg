@@ -145,88 +145,96 @@ EFI_STATUS cmd_version(int argc, CHAR16** argv) {
 }
 
 EFI_STATUS cmd_flashread(int argc, CHAR16** argv) {
-	if(argc < 4) {
-		Print(L"ectool flashread OFFSET SIZE FILE\n");
-		return 1;
-	}
-
 	UINTN offset, size;
 	CHAR16* path = argv[3];
+	char* FlashBuffer = NULL;
+	EFI_STATUS Status = EFI_SUCCESS;
+	SHELL_FILE_HANDLE File = NULL;
+	struct ec_params_flash_notified FlashNotifyParams = {0};
+	int rv = 0;
+	int unlocked = 0;
+
+	if(argc < 4) {
+		Print(L"ectool flashread OFFSET SIZE FILE\n");
+		Status = EFI_INVALID_PARAMETER;
+		goto Out;
+	}
 
 	if((offset = ShellStrToUintn(argv[1])) < 0) {
 		Print(L"invalid offset\n");
-		return 1;
+		Status = EFI_INVALID_PARAMETER;
+		goto Out;
 	}
 
 	if((size = ShellStrToUintn(argv[2])) < 0) {
 		Print(L"invalid size\n");
-		return 1;
+		Status = EFI_INVALID_PARAMETER;
+		goto Out;
 	}
 
-	char* FlashBuffer = AllocatePool(size);
+	FlashBuffer = AllocatePool(size);
 	if(!FlashBuffer) {
 		Print(L"Failed to allocate flash read buffer.\n");
-		return 1;
+		Status = EFI_NOT_READY;
+		goto Out;
 	}
 
-	SHELL_FILE_HANDLE File;
-	int rv = 0;
+	Status = ShellOpenFileByName(path, &File, EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
+	if(EFI_ERROR(Status)) {
+		File = NULL;
+		Print(L"Failed to open `%s': %r\n", path, Status);
+		goto Out;
+	}
 
-	char flashNotify;
-	flashNotify = 1;  // Lock down for flashing
-	rv = ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
-	if(rv < 0) {
-		Print(L"Failed to unlock flash: %d\n", rv);
-		return EFI_UNSUPPORTED;
-	}
-	flashNotify = 0;  // Enable SPI access
-	rv = ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
-	if(rv < 0) {
-		Print(L"Failed to enable SPI: %d\n", rv);
-		return EFI_UNSUPPORTED;
-	}
+	FlashNotifyParams.flags = FLASH_ACCESS_SPI;
+	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+	if(rv < 0)
+		goto EcOut;
+
+	unlocked = 1;
 
 	rv = flash_read(offset, size, FlashBuffer);
 	if(rv < 0) {
-		Print(L"Failed to read: %d\n", rv);
-		FreePool(FlashBuffer);
-		return 1;
+		Print(L"Failed to read: ");
+		goto EcOut;
 	}
 
-	// re-lock flash
-	flashNotify = 2;  // Flash done
-	int lrv = ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
-	if(lrv < 0) {
-		Print(L"Failed to re-lock flash: %d\n", lrv);
-	}
-	flashNotify = 3;  // SPI access done
-	lrv = ECSendCommandLPCv3(0x3E01, 0, &flashNotify, 1, &flashNotify, 0);
-	if(lrv < 0) {
-		Print(L"Failed to toggle SPI: %d\n", lrv);
+	Status = ShellWriteFile(File, &size, FlashBuffer);
+	if(EFI_ERROR(Status)) {
+		Print(L"Failed to write `%s': %r\n", path, Status);
+		goto Out;
 	}
 
-	if(rv >= 0) {
-		EFI_STATUS s = ShellOpenFileByName(path, &File,
-		                            EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
-		if(EFI_ERROR(s)) {
-			Print(L"Failed to open `%s': %r\n", path, s);
-			return 1;
-		}
-		s = ShellWriteFile(File, &size, FlashBuffer);
-		if(EFI_ERROR(s)) {
-			Print(L"Failed to write `%s': %r\n", path, s);
-			// fall through
-		}
-		s = ShellCloseFile(&File);
-		if(EFI_ERROR(s)) {
-			Print(L"Failed to close `%s': %r\n", path, s);
-			// fall through
-		}
-		Print(L"Dumped %d bytes to %s\n", size, path);
+	Status = ShellCloseFile(&File);
+	if(EFI_ERROR(Status)) {
+		Print(L"Failed to close `%s': %r\n", path, Status);
+		goto Out;
+	}
+	File = NULL;
+
+	Print(L"Dumped %d bytes to %s\n", size, path);
+
+EcOut:
+	if(rv < 0) {
+		PrintECResponse(rv);
+		Print(L"\n");
+		Status = EFI_DEVICE_ERROR;
 	}
 
-	FreePool(FlashBuffer);
-	return EFI_SUCCESS;
+Out:
+	if(unlocked) {
+		// last ditch effort: tell the EC we're done with SPI
+		FlashNotifyParams.flags = FLASH_ACCESS_SPI_DONE;
+		ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+		// discard the response; it won't help now
+		unlocked = 0;
+	}
+
+	if(File) {
+		ShellCloseFile(&File);
+	}
+	SHELL_FREE_NON_NULL(FlashBuffer);
+	return Status;
 }
 
 #define FLASH_BASE 0x0 // 0x80000
