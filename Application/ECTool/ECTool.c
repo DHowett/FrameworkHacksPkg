@@ -407,12 +407,6 @@ Out:
 	return Status;
 }
 
-EFI_STATUS cmd_fwc(int argc, CHAR16** argv) {
-	EFI_STATUS Status = CheckReadyForECFlash();
-	Print(L"Readiness: %d\n", Status);
-	return Status;
-}
-
 EFI_STATUS cmd_reboot(int argc, CHAR16** argv) {
 	struct ec_params_reboot_ec p;
 	p.cmd = EC_REBOOT_COLD;
@@ -434,7 +428,6 @@ static struct comspec commands[] = {
 	{L"reboot", cmd_reboot},
 	{L"flashread", cmd_flashread},
 	{L"reflash", cmd_fwup2},
-	//{L"str", cmd_str},
 };
 
 EFI_STATUS
