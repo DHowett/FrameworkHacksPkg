@@ -226,7 +226,7 @@ EFI_STATUS cmd_flashread(int argc, CHAR16** argv) {
 	return EFI_SUCCESS;
 }
 
-#define FLASH_BASE 0x80000
+#define FLASH_BASE 0x0 // 0x80000
 #define FLASH_RO_BASE 0x0
 #define FLASH_RO_SIZE 0x3C000
 #define FLASH_RW_BASE 0x40000
