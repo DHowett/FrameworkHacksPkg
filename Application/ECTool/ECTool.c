@@ -132,17 +132,47 @@ GetArg(VOID) {
 }
 
 EFI_STATUS cmd_version(int argc, CHAR16** argv) {
-	char buf[248];
-	ZeroMem(buf, 248);
-	int rv = ECSendCommandLPCv3(EC_CMD_GET_BUILD_INFO, 0, NULL, 0, buf, 248);
+	EFI_STATUS Status = EFI_SUCCESS;
+	struct ec_response_get_version r;
+	struct ec_params_flash_notified FlashNotifyParams = {0};
+	char buf[248] = {0};
+	int rv = 0;
+	int unlocked = 0;
+
+	rv = ECSendCommandLPCv3(EC_CMD_GET_BUILD_INFO, 0, NULL, 0, buf, 248);
+	if(rv < 0)
+		goto EcOut;
+
+	// It's necessary to unlock SPI to read the RW version
+	FlashNotifyParams.flags = FLASH_ACCESS_SPI;
+	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+	if(rv < 0)
+		goto EcOut;
+
+	unlocked = 1;
+
+	rv = ECSendCommandLPCv3(EC_CMD_GET_VERSION, 0, NULL, 0, &r, sizeof(r));
+	if(rv < 0)
+		goto EcOut;
+
+	Print(L"RO Version: %a\nRW Version: %a\nCurrent Image: %s\nBuild Info: %a\n", r.version_string_ro, r.version_string_rw, r.current_image == EC_IMAGE_RW ? L"RW" : r.current_image == EC_IMAGE_RO ? L"RO" : L"<unknown>", buf);
+
+EcOut:
 	if(rv < 0) {
-		Print(L"Error: ");
 		PrintECResponse(rv);
 		Print(L"\n");
-		return EFI_UNSUPPORTED;
+		Status = EFI_DEVICE_ERROR;
 	}
-	AsciiPrint("%a\n", buf);
-	return 0;
+
+	if(unlocked) {
+		// last ditch effort: tell the EC we're done with SPI
+		FlashNotifyParams.flags = FLASH_ACCESS_SPI_DONE;
+		ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+		// discard the response; it won't help now
+		unlocked = 0;
+	}
+
+	return Status;
 }
 
 EFI_STATUS cmd_flashread(int argc, CHAR16** argv) {
