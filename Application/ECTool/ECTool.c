@@ -444,11 +444,7 @@ UefiMain(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* SystemTable) {
 	GetArg();
 
 	if(Argc < 2) {
-		Print(L"Invocation: ectool <command> args\n\nCommands:\n");
-		for(int i = 0; i < ARRAY_SIZE(commands); ++i) {
-			Print(L"- %s\n", commands[i].name);
-		}
-		return 1;
+		goto OutHelp;
 	}
 
 	for(int i = 0; i < ARRAY_SIZE(commands); ++i) {
@@ -457,5 +453,10 @@ UefiMain(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* SystemTable) {
 		}
 	}
 
-	return Status;
+OutHelp:
+	Print(L"Invocation: ectool <command> args\n\nCommands:\n");
+	for(int i = 0; i < ARRAY_SIZE(commands); ++i) {
+		Print(L"- %s\n", commands[i].name);
+	}
+	return 1;
 }
