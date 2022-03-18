@@ -8,7 +8,9 @@
 
 [Sources]
   ECTool.c
+  EC.c
   FWUpdate.c
+  Flash.c
   ECTool.uni
 
 [Packages]
