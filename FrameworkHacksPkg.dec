@@ -7,5 +7,9 @@
 [Includes]
   Include
 
+[Protocols]
+  gEfiCrosECProtocolGuid = { 0x76945038, 0x21bf, 0x465c, { 0xb9, 0x11, 0x95, 0x61, 0xfc, 0xe0, 0x30, 0xa4 } }
+# {76945038-21BF-465C-B911-9561FCE030A4}
+
 [LibraryClasses]
   CrosECLib|Include/Library/CrosECLib.h
