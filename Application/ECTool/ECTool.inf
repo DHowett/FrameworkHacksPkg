@@ -47,3 +47,4 @@
   gEfiDevicePathProtocolGuid                              ## CONSUMES
   gEfiShellProtocolGuid                                   ## CONSUMES
   gEfiShellParametersProtocolGuid                         ## CONSUMES
+  gEfiCrosECProtocolGuid                                  ## CONSUMES
