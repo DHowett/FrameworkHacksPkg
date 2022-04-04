@@ -6,6 +6,8 @@
   VERSION_STRING                 = 1.0
   LIBRARY_CLASS                  = CrosECLib
   VALID_ARCHITECTURES            = X64
+  CONSTRUCTOR                    = CrosECMecLpcLibConstructor
+  DESTRUCTOR                     = CrosECMecLpcLibDestructor
 
 [Sources]
   EC.c
@@ -17,4 +19,8 @@
 [LibraryClasses]
   BaseLib
   TimerLib
+  DevicePathLib
   IoLib
+
+[Protocols]
+  gEfiCrosECProtocolGuid ## PRODUCES

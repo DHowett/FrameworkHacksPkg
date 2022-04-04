@@ -1,8 +1,14 @@
+#include <Uefi.h>
+
 #include <Library/BaseMemoryLib.h>
 #include <Library/CrosECLib.h>
 #include <Library/DebugLib.h>
+#include <Library/DevicePathLib.h>
 #include <Library/MemoryAllocationLib.h>
-#include <Uefi.h>
+#include <Library/UefiBootServicesTableLib.h>
+
+#include <Protocol/CrosEC.h>
+#include <Protocol/DevicePath.h>
 
 // This is a memory dump of EC mapped memory from a Framework Laptop running EC ver 8109392.
 // It was plugged in at the time (so the battery flags includes AC_PRESENT).
@@ -27,7 +33,7 @@ unsigned int ECMEM_BIN_LEN = 254;
 UINT8* gMutableFlash;
 static const UINTN gFlashLen = 1048576;
 
-int ECReadMemoryLPC(int offset, void* buffer, int length) {
+INTN EFIAPI ECReadMemoryNullLpc(UINTN offset, void* buffer, UINTN length) {
 	int off = offset;
 	int cnt = 0;
 	UINT8* s = buffer;
@@ -57,7 +63,8 @@ int ECReadMemoryLPC(int offset, void* buffer, int length) {
 static int flashBytesErased = 0;
 static int flashBytesWritten = 0;
 
-int ECSendCommandLPCv3(int command, int version, const void* outdata, int outsize, void* indata, int insize) {
+INTN EFIAPI
+ECSendCommandNullLpc(UINTN command, UINTN version, const void* outdata, UINTN outsize, void* indata, UINTN insize) {
 	DebugPrint(DEBUG_VERBOSE, "ECSendCommandLPCv3: %X/%d send %d bytes expect %d\n", command, version, outsize,
 	           insize);
 	switch(command) {
@@ -115,18 +122,57 @@ int ECSendCommandLPCv3(int command, int version, const void* outdata, int outsiz
 	return -EC_RES_INVALID_COMMAND;
 }
 
+/// PROTOCOL INSTALLATION
+
+static CONST EFI_CROSEC_PROTOCOL mCrosECProtocol = {
+	.SendCommand = &ECSendCommandNullLpc,
+	.ReadMemory = &ECReadMemoryNullLpc,
+};
+
+typedef struct {
+	VENDOR_DEVICE_PATH VendorDevicePath;
+	EFI_DEVICE_PATH_PROTOCOL End;
+} TERMINATED_VENDOR_DEVICE_PATH;
+
+static TERMINATED_VENDOR_DEVICE_PATH mVendorDevicePath = {
+	{{HARDWARE_DEVICE_PATH,
+          HW_VENDOR_DP,
+          {(UINT8)(sizeof(VENDOR_DEVICE_PATH)), (UINT8)((sizeof(VENDOR_DEVICE_PATH)) >> 8)}},
+         EFI_CROSEC_PROTOCOL_GUID},
+	{END_DEVICE_PATH_TYPE,
+         END_ENTIRE_DEVICE_PATH_SUBTYPE,
+         {(UINT8)(END_DEVICE_PATH_LENGTH), (UINT8)((END_DEVICE_PATH_LENGTH) >> 8)}}};
+
+static EFI_HANDLE mProtocolHandle = NULL;
+
 EFI_STATUS
 EFIAPI
 CrosECLibNullConstructor() {
+	EFI_STATUS Status = EFI_SUCCESS;
 	gMutableFlash = (UINT8*)AllocatePool(gFlashLen);
 	SetMem(gMutableFlash, gFlashLen, 0xFF);
-	return EFI_SUCCESS;
+	Status = gBS->InstallMultipleProtocolInterfaces(&mProtocolHandle, &gEfiDevicePathProtocolGuid,
+	                                                &mVendorDevicePath, &gEfiCrosECProtocolGuid,
+	                                                (EFI_CROSEC_PROTOCOL*)&mCrosECProtocol, NULL);
+	if(Status == EFI_ALREADY_STARTED) {
+		// An EC has already been detected. We can safely bail out.
+		Status = EFI_SUCCESS;
+	}
+	return Status;
 }
 
 EFI_STATUS
 EFIAPI
 CrosECLibNullDestructor() {
+	EFI_STATUS Status = EFI_SUCCESS;
 	FreePool(gMutableFlash);
 	gMutableFlash = NULL;
-	return EFI_SUCCESS;
+
+	if(mProtocolHandle != NULL) {
+		Status = gBS->UninstallMultipleProtocolInterfaces(mProtocolHandle, &gEfiDevicePathProtocolGuid,
+		                                                  &mVendorDevicePath, &gEfiCrosECProtocolGuid,
+		                                                  (EFI_CROSEC_PROTOCOL*)&mCrosECProtocol, NULL);
+	}
+
+	return Status;
 }

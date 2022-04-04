@@ -1,16 +1,21 @@
 #include <Uefi.h>
+
 #include <Library/BaseMemoryLib.h>
-#include <Library/TimerLib.h>
-#include <Library/IoLib.h>
 #include <Library/CrosECLib.h>
+#include <Library/DevicePathLib.h>
+#include <Library/IoLib.h>
+#include <Library/TimerLib.h>
+#include <Library/UefiBootServicesTableLib.h>
+
+#include <Protocol/CrosEC.h>
+#include <Protocol/DevicePath.h>
 
 #define memcpy CopyMem
 
 typedef UINT16 USHORT;
-typedef UINT8  UCHAR;
+typedef UINT8 UCHAR;
 
-typedef enum _EC_TRANSFER_DIRECTION
-{
+typedef enum _EC_TRANSFER_DIRECTION {
 	EC_XFER_WRITE,
 	EC_XFER_READ
 } EC_TRANSFER_DIRECTION;
@@ -27,10 +32,7 @@ typedef enum _EC_TRANSFER_DIRECTION
 #define MEC_LPC_DATA_REGISTER2    0x0806
 #define MEC_LPC_DATA_REGISTER3    0x0807
 
-static int ECTransfer(EC_TRANSFER_DIRECTION direction,
-                      USHORT address,
-                      char* data,
-                      USHORT size) {
+static int ECTransfer(EC_TRANSFER_DIRECTION direction, USHORT address, char* data, USHORT size) {
 	int pos = 0;
 	USHORT temp[2];
 	if(address % 4 > 0) {
@@ -116,7 +118,7 @@ static UCHAR ECChecksumBuffer(char* data, int size) {
 	return sum;
 };
 
-int ECReadMemoryLPC(int offset, void* buffer, int length) {
+INTN EFIAPI ECReadMemoryMecLpc(UINTN offset, void* buffer, UINTN length) {
 	int off = offset;
 	int cnt = 0;
 	UCHAR* s = buffer;
@@ -143,12 +145,8 @@ int ECReadMemoryLPC(int offset, void* buffer, int length) {
 	return cnt;
 }
 
-int ECSendCommandLPCv3(int command,
-                       int version,
-                       const void* outdata,
-                       int outsize,
-                       void* indata,
-                       int insize) {
+INTN EFIAPI
+ECSendCommandMecLpc(UINTN command, UINTN version, const void* outdata, UINTN outsize, void* indata, UINTN insize) {
 	int res = EC_RES_SUCCESS;
 	UCHAR csum = 0;
 	int i;
@@ -235,4 +233,60 @@ int ECSendCommandLPCv3(int command,
 
 Out:
 	return res;
+}
+
+/// PROTOCOL INSTALLATION
+
+static CONST EFI_CROSEC_PROTOCOL mCrosECProtocol = {
+	.SendCommand = &ECSendCommandMecLpc,
+	.ReadMemory = &ECReadMemoryMecLpc,
+};
+
+typedef struct {
+	VENDOR_DEVICE_PATH VendorDevicePath;
+	EFI_DEVICE_PATH_PROTOCOL End;
+} TERMINATED_VENDOR_DEVICE_PATH;
+
+static TERMINATED_VENDOR_DEVICE_PATH mVendorDevicePath = {
+	{{HARDWARE_DEVICE_PATH,
+          HW_VENDOR_DP,
+          {(UINT8)(sizeof(VENDOR_DEVICE_PATH)), (UINT8)((sizeof(VENDOR_DEVICE_PATH)) >> 8)}},
+         EFI_CROSEC_PROTOCOL_GUID},
+	{END_DEVICE_PATH_TYPE,
+         END_ENTIRE_DEVICE_PATH_SUBTYPE,
+         {(UINT8)(END_DEVICE_PATH_LENGTH), (UINT8)((END_DEVICE_PATH_LENGTH) >> 8)}}};
+
+static EFI_HANDLE mProtocolHandle = NULL;
+
+EFI_STATUS
+EFIAPI
+CrosECMecLpcLibConstructor() {
+	EFI_STATUS Status = EFI_SUCCESS;
+	UCHAR Id[2];
+	if(2 == ECReadMemoryMecLpc(EC_MEMMAP_ID, Id, 2)) {
+		if(Id[0] == 'E' && Id[1] == 'C') {
+			Status = gBS->InstallMultipleProtocolInterfaces(&mProtocolHandle, &gEfiDevicePathProtocolGuid,
+			                                                &mVendorDevicePath, &gEfiCrosECProtocolGuid,
+			                                                (EFI_CROSEC_PROTOCOL*)&mCrosECProtocol, NULL);
+		}
+	}
+	if(Status == EFI_ALREADY_STARTED) {
+		// An EC has already been detected. We can safely bail out.
+		Status = EFI_SUCCESS;
+	}
+	return Status;
+}
+
+EFI_STATUS
+EFIAPI
+CrosECMecLpcLibDestructor() {
+	EFI_STATUS Status = EFI_SUCCESS;
+
+	if(mProtocolHandle != NULL) {
+		Status = gBS->UninstallMultipleProtocolInterfaces(mProtocolHandle, &gEfiDevicePathProtocolGuid,
+		                                                  &mVendorDevicePath, &gEfiCrosECProtocolGuid,
+		                                                  (EFI_CROSEC_PROTOCOL*)&mCrosECProtocol, NULL);
+	}
+
+	return Status;
 }
