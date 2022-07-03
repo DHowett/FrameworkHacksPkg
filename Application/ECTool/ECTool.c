@@ -188,6 +188,11 @@ EFI_STATUS cmd_reboot(int argc, CHAR16** argv) {
 			p.cmd = EC_REBOOT_JUMP_RW;
 	}
 
+	if(argc > 2) {
+		if(StrCmp(argv[2], L"at-shutdown") == 0)
+			p.flags |= EC_REBOOT_FLAG_ON_AP_SHUTDOWN;
+	}
+
 	rv = ECSendCommandLPCv3(EC_CMD_REBOOT_EC, 0, &p, sizeof(p), NULL, 0);
 	// UNREACHABLE ON SUCCESS ON THE FRAMEWORK LAPTOP
 	if(rv < 0) {
