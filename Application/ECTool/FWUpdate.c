@@ -20,8 +20,12 @@ EFI_STATUS CheckReadyForECFlash() {
 	ECReadMemoryLPC(EC_MEMMAP_BATT_LFCC, &batteryLfcc, sizeof(batteryLfcc));
 	ECReadMemoryLPC(EC_MEMMAP_BATT_CAP, &batteryCap, sizeof(batteryCap));
 
-	if(0 == (batteryFlag & EC_BATT_FLAG_AC_PRESENT) || ((100ULL * batteryCap) / batteryLfcc) < 20) {
-		Print(L"Make sure AC is connected and that the battery is at least 20%% charged.\n");
+	if(0 == (batteryFlag & EC_BATT_FLAG_AC_PRESENT)
+			|| (
+				(batteryFlag & EC_BATT_FLAG_BATT_PRESENT)
+				&& ((100ULL * batteryCap) / batteryLfcc) < 20)
+			) {
+		Print(L"Make sure AC is connected and that if there is a battery present it is at least 20%% charged.\n");
 		return EFI_NOT_READY;
 	}
 
