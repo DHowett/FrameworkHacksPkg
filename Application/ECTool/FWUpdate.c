@@ -47,22 +47,36 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	char* VerifyBuffer = NULL;
 	UINTN ReadSize = 0;
 	struct ec_params_flash_notified FlashNotifyParams = {0};
+	BOOLEAN force = FALSE, flash_ro = TRUE;
+	CHAR16* filename = NULL;
 
-	if(argc < 2) {
+	for(int i = 1; i < argc; ++i) {
+		if(StrCmp(argv[i], L"-f") == 0)
+			force = TRUE;
+		else if(StrCmp(argv[i], L"--rw") == 0)
+			flash_ro = FALSE;
+		else {
+			filename = argv[i];
+			// the filename is the last argument. All stop!
+			break;
+		}
+	}
+
+	if(!filename) {
 		Print(L"ectool reflash FILE\n\nAttempts to safely reflash the Framework Laptop's EC\nPreserves flash "
 		      L"region 3C000-3FFFF and 79000-7FFFF.\n");
 		return 1;
 	}
 
-	Status = CheckReadyForECFlash();
+	Status = force == TRUE ? EFI_SUCCESS : CheckReadyForECFlash();
 	if(EFI_ERROR(Status)) {
 		Print(L"System not ready\n");
 		goto Out;
 	}
 
-	Status = ShellOpenFileByName(argv[1], &FirmwareFile, EFI_FILE_MODE_READ, 0);
+	Status = ShellOpenFileByName(filename, &FirmwareFile, EFI_FILE_MODE_READ, 0);
 	if(EFI_ERROR(Status)) {
-		Print(L"Failed to open `%s': %r\n", argv[1], Status);
+		Print(L"Failed to open `%s': %r\n", filename, Status);
 		goto Out;
 	}
 
@@ -108,12 +122,15 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	}
 	Print(L"\n");
 
-	Status = CheckReadyForECFlash();
+	Status = force == TRUE ? EFI_SUCCESS : CheckReadyForECFlash();
 	if(EFI_ERROR(Status)) {
 		Print(L"System not ready\n");
 		goto Out;
 	}
 
+	Print(L"************************************************\n");
+	Print(L"*** DO NOT UNPLUG OR POWER OFF YOUR COMPUTER ***\n");
+	Print(L"************************************************\n\n");
 	Print(L"Unlocking flash... ");
 	FlashNotifyParams.flags = FLASH_ACCESS_SPI;
 	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
@@ -125,11 +142,13 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		goto EcOut;
 	Print(L"OK\n");
 
-	Print(L"Erasing RO region... ");
-	rv = flash_erase(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE);
-	if(rv < 0)
-		goto EcOut;
-	Print(L"OK\n");
+	if (flash_ro == TRUE) {
+		Print(L"Erasing RO region... ");
+		rv = flash_erase(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE);
+		if(rv < 0)
+			goto EcOut;
+		Print(L"OK\n");
+	}
 
 	Print(L"Erasing RW region... ");
 	rv = flash_erase(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE);
@@ -137,11 +156,13 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		goto EcOut;
 	Print(L"OK\n");
 
-	Print(L"Writing RO region... ");
-	rv = flash_write(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE, FirmwareBuffer + FLASH_RO_BASE);
-	if(rv < 0)
-		goto EcOut;
-	Print(L"OK\n");
+	if (flash_ro == TRUE) {
+		Print(L"Writing RO region... ");
+		rv = flash_write(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE, FirmwareBuffer + FLASH_RO_BASE);
+		if(rv < 0)
+			goto EcOut;
+		Print(L"OK\n");
+	}
 
 	Print(L"Writing RW region... ");
 	rv = flash_write(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, FirmwareBuffer + FLASH_RW_BASE);
@@ -151,18 +172,22 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 
 	Print(L"Verifying: Read... ");
 
-	rv = flash_read(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE, VerifyBuffer + FLASH_RO_BASE);
-	if(rv < 0)
-		goto EcOut;
+	if (flash_ro == TRUE) {
+		rv = flash_read(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE, VerifyBuffer + FLASH_RO_BASE);
+		if(rv < 0)
+			goto EcOut;
+	}
 	rv = flash_read(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, VerifyBuffer + FLASH_RW_BASE);
 	if(rv < 0)
 		goto EcOut;
 	Print(L"OK. Check... ");
 
-	if(CompareMem(VerifyBuffer + FLASH_RO_BASE, FirmwareBuffer + FLASH_RO_BASE, FLASH_RO_SIZE) == 0) {
-		Print(L"RO OK... ");
-	} else {
-		Print(L"RO FAIL! ");
+	if (flash_ro == TRUE) {
+		if(CompareMem(VerifyBuffer + FLASH_RO_BASE, FirmwareBuffer + FLASH_RO_BASE, FLASH_RO_SIZE) == 0) {
+			Print(L"RO OK... ");
+		} else {
+			Print(L"RO FAIL! ");
+		}
 	}
 	if(CompareMem(VerifyBuffer + FLASH_RW_BASE, FirmwareBuffer + FLASH_RW_BASE, FLASH_RW_SIZE) == 0) {
 		Print(L"RW OK... ");
