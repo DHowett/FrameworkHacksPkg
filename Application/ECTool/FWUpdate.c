@@ -144,6 +144,37 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		goto EcOut;
 	Print(L"OK\n");
 
+	if (flash_rw == TRUE) {
+		Print(L"RW: Erasing... ");
+		rv = flash_erase(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE);
+		if(rv < 0)
+			goto EcOut;
+		Print(L"OK. ");
+
+		Print(L"Writing... ");
+		rv = flash_write(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, FirmwareBuffer + FLASH_RW_BASE);
+		if(rv < 0)
+			goto EcOut;
+		Print(L"OK. ");
+
+		Print(L"Verifying: Read... ");
+		rv = flash_read(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, VerifyBuffer + FLASH_RW_BASE);
+		if(rv < 0)
+			goto EcOut;
+
+		Print(L"OK. Check... ");
+
+		if(CompareMem(VerifyBuffer + FLASH_RW_BASE, FirmwareBuffer + FLASH_RW_BASE, FLASH_RW_SIZE) == 0) {
+			Print(L"OK!\n");
+		} else {
+			Print(L"FAILED!\n");
+			Print(L"*** RW FAILED VERIFICATION! NOT PROCEEDING TO RO ***\n");
+			// Bailing out after RW but before RO stands a chance of preserving the system
+			rv = -1;
+			goto ErrorOut;
+		}
+	}
+
 	if (flash_ro == TRUE) {
 		Print(L"RO: Erasing... ");
 		rv = flash_erase(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE);
@@ -172,33 +203,6 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		}
 	}
 
-	if (flash_rw == TRUE) {
-		Print(L"RW: Erasing... ");
-		rv = flash_erase(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE);
-		if(rv < 0)
-			goto EcOut;
-		Print(L"OK. ");
-
-		Print(L"Writing... ");
-		rv = flash_write(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, FirmwareBuffer + FLASH_RW_BASE);
-		if(rv < 0)
-			goto EcOut;
-		Print(L"OK. ");
-
-		Print(L"Verifying: Read... ");
-		rv = flash_read(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, VerifyBuffer + FLASH_RW_BASE);
-		if(rv < 0)
-			goto EcOut;
-
-		Print(L"OK. Check... ");
-
-		if(CompareMem(VerifyBuffer + FLASH_RW_BASE, FirmwareBuffer + FLASH_RW_BASE, FLASH_RW_SIZE) == 0) {
-			Print(L"OK!\n");
-		} else {
-			Print(L"FAILED!\n");
-		}
-	}
-
 	Print(L"Locking flash... ");
 	FlashNotifyParams.flags = FLASH_ACCESS_SPI_DONE;
 	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
@@ -215,6 +219,9 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 EcOut:
 	if(rv < 0) {
 		PrintECResponse(rv);
+	}
+ErrorOut:
+	if(rv < 0) {
 		Print(L"\n");
 		Print(L"*** YOUR COMPUTER MAY NO LONGER BOOT ***\n");
 		Status = EFI_DEVICE_ERROR;
