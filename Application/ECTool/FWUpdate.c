@@ -47,12 +47,14 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	char* VerifyBuffer = NULL;
 	UINTN ReadSize = 0;
 	struct ec_params_flash_notified FlashNotifyParams = {0};
-	BOOLEAN force = FALSE, flash_ro = TRUE;
+	BOOLEAN force = FALSE, flash_ro = TRUE, flash_rw = TRUE;
 	CHAR16* filename = NULL;
 
 	for(int i = 1; i < argc; ++i) {
 		if(StrCmp(argv[i], L"-f") == 0)
 			force = TRUE;
+		else if(StrCmp(argv[i], L"--ro") == 0)
+			flash_rw = FALSE;
 		else if(StrCmp(argv[i], L"--rw") == 0)
 			flash_ro = FALSE;
 		else {
@@ -150,11 +152,13 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		Print(L"OK\n");
 	}
 
-	Print(L"Erasing RW region... ");
-	rv = flash_erase(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE);
-	if(rv < 0)
-		goto EcOut;
-	Print(L"OK\n");
+	if (flash_rw == TRUE) {
+		Print(L"Erasing RW region... ");
+		rv = flash_erase(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE);
+		if(rv < 0)
+			goto EcOut;
+		Print(L"OK\n");
+	}
 
 	if (flash_ro == TRUE) {
 		Print(L"Writing RO region... ");
@@ -164,11 +168,13 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		Print(L"OK\n");
 	}
 
-	Print(L"Writing RW region... ");
-	rv = flash_write(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, FirmwareBuffer + FLASH_RW_BASE);
-	if(rv < 0)
-		goto EcOut;
-	Print(L"OK\n");
+	if (flash_rw == TRUE) {
+		Print(L"Writing RW region... ");
+		rv = flash_write(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, FirmwareBuffer + FLASH_RW_BASE);
+		if(rv < 0)
+			goto EcOut;
+		Print(L"OK\n");
+	}
 
 	Print(L"Verifying: Read... ");
 
@@ -177,9 +183,11 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		if(rv < 0)
 			goto EcOut;
 	}
-	rv = flash_read(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, VerifyBuffer + FLASH_RW_BASE);
-	if(rv < 0)
-		goto EcOut;
+	if (flash_rw == TRUE) {
+		rv = flash_read(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, VerifyBuffer + FLASH_RW_BASE);
+		if(rv < 0)
+			goto EcOut;
+	}
 	Print(L"OK. Check... ");
 
 	if (flash_ro == TRUE) {
@@ -189,10 +197,12 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 			Print(L"RO FAIL! ");
 		}
 	}
-	if(CompareMem(VerifyBuffer + FLASH_RW_BASE, FirmwareBuffer + FLASH_RW_BASE, FLASH_RW_SIZE) == 0) {
-		Print(L"RW OK... ");
-	} else {
-		Print(L"RW FAIL! ");
+	if (flash_rw == TRUE) {
+		if(CompareMem(VerifyBuffer + FLASH_RW_BASE, FirmwareBuffer + FLASH_RW_BASE, FLASH_RW_SIZE) == 0) {
+			Print(L"RW OK... ");
+		} else {
+			Print(L"RW FAIL! ");
+		}
 	}
 	Print(L"OK\n");
 
