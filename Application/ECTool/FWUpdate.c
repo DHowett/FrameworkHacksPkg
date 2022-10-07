@@ -145,66 +145,59 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	Print(L"OK\n");
 
 	if (flash_ro == TRUE) {
-		Print(L"Erasing RO region... ");
+		Print(L"RO: Erasing... ");
 		rv = flash_erase(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE);
 		if(rv < 0)
 			goto EcOut;
-		Print(L"OK\n");
-	}
+		Print(L"OK. ");
 
-	if (flash_rw == TRUE) {
-		Print(L"Erasing RW region... ");
-		rv = flash_erase(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE);
-		if(rv < 0)
-			goto EcOut;
-		Print(L"OK\n");
-	}
-
-	if (flash_ro == TRUE) {
-		Print(L"Writing RO region... ");
+		Print(L"Writing... ");
 		rv = flash_write(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE, FirmwareBuffer + FLASH_RO_BASE);
 		if(rv < 0)
 			goto EcOut;
-		Print(L"OK\n");
-	}
+		Print(L"OK. ");
 
-	if (flash_rw == TRUE) {
-		Print(L"Writing RW region... ");
-		rv = flash_write(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, FirmwareBuffer + FLASH_RW_BASE);
-		if(rv < 0)
-			goto EcOut;
-		Print(L"OK\n");
-	}
+		Print(L"Verifying: Read... ");
 
-	Print(L"Verifying: Read... ");
-
-	if (flash_ro == TRUE) {
 		rv = flash_read(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE, VerifyBuffer + FLASH_RO_BASE);
 		if(rv < 0)
 			goto EcOut;
+
+		Print(L"OK. Check... ");
+
+		if(CompareMem(VerifyBuffer + FLASH_RO_BASE, FirmwareBuffer + FLASH_RO_BASE, FLASH_RO_SIZE) == 0) {
+			Print(L"OK!\n");
+		} else {
+			Print(L"FAILED!\n");
+		}
 	}
+
 	if (flash_rw == TRUE) {
+		Print(L"RW: Erasing... ");
+		rv = flash_erase(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE);
+		if(rv < 0)
+			goto EcOut;
+		Print(L"OK. ");
+
+		Print(L"Writing... ");
+		rv = flash_write(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, FirmwareBuffer + FLASH_RW_BASE);
+		if(rv < 0)
+			goto EcOut;
+		Print(L"OK. ");
+
+		Print(L"Verifying: Read... ");
 		rv = flash_read(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, VerifyBuffer + FLASH_RW_BASE);
 		if(rv < 0)
 			goto EcOut;
-	}
-	Print(L"OK. Check... ");
 
-	if (flash_ro == TRUE) {
-		if(CompareMem(VerifyBuffer + FLASH_RO_BASE, FirmwareBuffer + FLASH_RO_BASE, FLASH_RO_SIZE) == 0) {
-			Print(L"RO OK... ");
-		} else {
-			Print(L"RO FAIL! ");
-		}
-	}
-	if (flash_rw == TRUE) {
+		Print(L"OK. Check... ");
+
 		if(CompareMem(VerifyBuffer + FLASH_RW_BASE, FirmwareBuffer + FLASH_RW_BASE, FLASH_RW_SIZE) == 0) {
-			Print(L"RW OK... ");
+			Print(L"OK!\n");
 		} else {
-			Print(L"RW FAIL! ");
+			Print(L"FAILED!\n");
 		}
 	}
-	Print(L"OK\n");
 
 	Print(L"Locking flash... ");
 	FlashNotifyParams.flags = FLASH_ACCESS_SPI_DONE;
