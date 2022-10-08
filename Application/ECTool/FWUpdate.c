@@ -74,8 +74,16 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	}
 
 	if(!filename) {
-		Print(L"ectool reflash FILE\n\nAttempts to safely reflash the Framework Laptop's EC\nPreserves flash "
-		      L"region 3C000-3FFFF and 79000-7FFFF.\n");
+		Print(L"Usage: ectool reflash [options] FILE\n"
+		      L"\n"
+		      L"Attempts to safely reflash the Framework Laptop's EC\n"
+		      L"Preserves flash region 3C000-3FFFF and 79000-7FFFF.\n"
+		      L"\n"
+		      L"Options:\n"
+		      L"    --ro        Only reflash the RO portion (and bootloader)\n"
+		      L"    --rw        Only reflash the RW portion\n"
+		      L"    -f          Force: Skip the battery and AC check\n"
+		      );
 		return 1;
 	}
 
