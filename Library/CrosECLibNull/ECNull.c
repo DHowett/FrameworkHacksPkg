@@ -67,6 +67,13 @@ int ECSendCommandLPCv3(int command, int version, const void* outdata, int outsiz
 		case EC_CMD_GET_BUILD_INFO:
 			CopyMem(indata, "NULL EC!", MIN(insize, 9));
 			return 9;  // bytes
+		case EC_CMD_GET_VERSION: {
+			static struct ec_response_get_version resp = {
+				.version_string_rw = "fake_0.0.1",
+			};
+			CopyMem(indata, &resp, sizeof(resp));
+			return EC_RES_SUCCESS;
+		}
 		case EC_CMD_FLASH_INFO: {
 			static struct ec_response_flash_info_1 resp = {
 				.flash_size = gFlashLen,

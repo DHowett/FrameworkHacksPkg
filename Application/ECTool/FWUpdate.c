@@ -37,6 +37,10 @@ EFI_STATUS CheckReadyForECFlash() {
 #define FLASH_RO_SIZE 0x3C000
 #define FLASH_RW_BASE 0x40000
 #define FLASH_RW_SIZE 0x39000
+
+// This accounts for the MCHP header and the LFW reset vectors
+#define FLASH_MCHP_VERSION_OFFSET 0x2434
+
 EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	EFI_STATUS Status = EFI_SUCCESS;
 	SHELL_FILE_HANDLE FirmwareFile = NULL;
@@ -47,12 +51,17 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	char* VerifyBuffer = NULL;
 	UINTN ReadSize = 0;
 	struct ec_params_flash_notified FlashNotifyParams = {0};
-	BOOLEAN force = FALSE, flash_ro = TRUE, flash_rw = TRUE;
+	struct ec_response_get_version VersionResponse = {0};
+	char* CurrentBoardId = NULL;
+	char* FirmwareBoardId = NULL;
+	int FirmwareBoardIdLength = 0;
+	int force = 0;
+	BOOLEAN flash_ro = TRUE, flash_rw = TRUE;
 	CHAR16* filename = NULL;
 
 	for(int i = 1; i < argc; ++i) {
 		if(StrCmp(argv[i], L"-f") == 0)
-			force = TRUE;
+			++force;
 		else if(StrCmp(argv[i], L"--ro") == 0)
 			flash_rw = FALSE;
 		else if(StrCmp(argv[i], L"--rw") == 0)
@@ -70,7 +79,7 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		return 1;
 	}
 
-	Status = force == TRUE ? EFI_SUCCESS : CheckReadyForECFlash();
+	Status = force > 0 ? EFI_SUCCESS : CheckReadyForECFlash();
 	if(EFI_ERROR(Status)) {
 		Print(L"System not ready\n");
 		goto Out;
@@ -111,6 +120,35 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		goto Out;
 	}
 
+	rv = ECSendCommandLPCv3(EC_CMD_GET_VERSION, 0, NULL, 0, &VersionResponse, sizeof(VersionResponse));
+	if(rv < 0)
+		goto EcOut;
+
+	CurrentBoardId = &VersionResponse.version_string_ro[0];
+	if(!*CurrentBoardId) // The hx20 EC will by default only return the current active version; compensate
+		CurrentBoardId = &VersionResponse.version_string_rw[0];
+	// Versions are of the format board_vX.Y.Z; truncate at the _ to get the board
+	for(char* end = CurrentBoardId; end < (CurrentBoardId + 32); ++end) {
+		if (*end == '_') {
+			*end = '\0';
+			break;
+		}
+	}
+
+	FirmwareBoardId = FirmwareBuffer + FLASH_MCHP_VERSION_OFFSET;
+	for(; FirmwareBoardId[FirmwareBoardIdLength] != '_' && FirmwareBoardIdLength < 32; ++FirmwareBoardIdLength)
+		;
+	if(force < 2 && 0 != AsciiStrnCmp(CurrentBoardId, FirmwareBoardId, FirmwareBoardIdLength)) {
+		// We're about to abort the process, so we can edit the board ID in the
+		// firmware image we loaded into memory directly to null-terminate it.
+		FirmwareBoardId[FirmwareBoardIdLength] = '\0';
+		Print(L"*** BOARD MISMATCH ***\n");
+		Print(L"Current machine: %a\n", CurrentBoardId);
+		Print(L"Firmware image : %a\n", FirmwareBoardId);
+		Status = EFI_ABORTED;
+		goto Out;
+	}
+
 	Print(L"*** STARTING FLASH (PRESS ANY KEY TO CANCEL)\n");
 	Key.ScanCode = SCAN_NULL;
 	for(int i = 7; i > 0; i--) {
@@ -124,7 +162,7 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	}
 	Print(L"\n");
 
-	Status = force == TRUE ? EFI_SUCCESS : CheckReadyForECFlash();
+	Status = force > 0 ? EFI_SUCCESS : CheckReadyForECFlash();
 	if(EFI_ERROR(Status)) {
 		Print(L"System not ready\n");
 		goto Out;
