@@ -17,7 +17,15 @@ This repository contains some "fun"(?) tools to interact with the embedded contr
 Clone this repository into the root of your edk2 workspace, and then build it:
 
 ```
-build -p FrameworkHacksPkg/FrameworkHacksPkg.dsc -a X64 -b RELEASE
+build -p FrameworkHacksPkg/FrameworkHacksPkg.dsc -a X64 -b RELEASE -t GCC5
 ```
 
-Look in `$WORKSPACE/Build/FrameworkHacksPkg` for your output.
+> **Note**
+> You can set your preferred architecture, build type and toolchain by default
+> by editing the values stored in `Conf/target.txt`
+
+> **Warning**
+> _FrameworkHacksPkg has only been tested with the `GCC5` toolchain. If you elect
+> to use a different toolchain, your mileage may vary._
+
+Look in `$WORKSPACE/Build/FrameworkHacksPkg/RELEASE_GCC5/X64` for your output.
