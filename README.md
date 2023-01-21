@@ -1,10 +1,11 @@
-## ECTool.efi and FrameworkKeyMapDriver
+## ECTool.efi, FrameworkKeyMapDriver and others
 
 This repository contains some "fun"(?) tools to interact with the embedded controller in the Framework Laptop:
 
 * **FrameworkKeyMapDriver**: An EFI driver (loadable via systemd-boot) that remaps <kbd>Caps Lock</kbd> to
   <kbd>Escape</kbd>
 * **ECTool.efi**: An application, intended to be used from the EFI Shell, that primarily lets you reflash the EC
+* **ChassisIntrusionPCRMeasurementDriver**: An EFI driver with [its own readme](Drivers/ChassisIntrusionPCRMeasurementDriver/README.md).
 
 ### Building
 
