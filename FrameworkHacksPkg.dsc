@@ -37,9 +37,14 @@
   SortLib|MdeModulePkg/Library/UefiSortLib/UefiSortLib.inf
   UefiHiiServicesLib|MdeModulePkg/Library/UefiHiiServicesLib/UefiHiiServicesLib.inf
 
+  HashLib|SecurityPkg/Library/HashLibTpm2/HashLibTpm2.inf
+  Tpm2CommandLib|SecurityPkg/Library/Tpm2CommandLib/Tpm2CommandLib.inf
+  Tpm2DeviceLib|SecurityPkg/Library/Tpm2DeviceLibTcg2/Tpm2DeviceLibTcg2.inf
+
 !include MdePkg/MdeLibs.dsc.inc
 
 [Components]
   FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
   FrameworkHacksPkg/Drivers/FrameworkKeyMapDriver/FrameworkKeyMapDriver.inf
+  FrameworkHacksPkg/Drivers/ChassisIntrusionPCRMeasurementDriver/ChassisIntrusionPCRMeasurementDriver.inf
   FrameworkHacksPkg/Application/ECTool/ECTool.inf
