@@ -29,6 +29,7 @@
   PcdLib|MdePkg/Library/BasePcdLibNull/BasePcdLibNull.inf
   TimerLib|UefiCpuPkg/Library/CpuTimerLib/BaseCpuTimerLib.inf
 
+  IoLib|MdePkg/Library/BaseIoLibIntrinsic/BaseIoLibIntrinsic.inf
   CrosECLib|FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
 
   ShellLib|ShellPkg/Library/UefiShellLib/UefiShellLib.inf

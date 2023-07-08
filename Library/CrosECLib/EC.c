@@ -1,36 +1,13 @@
 #include <Uefi.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/TimerLib.h>
+#include <Library/IoLib.h>
 #include <Library/CrosECLib.h>
 
 #define memcpy CopyMem
 
 typedef UINT16 USHORT;
 typedef UINT8  UCHAR;
-
-static __inline void outb(unsigned char __val, unsigned short __port)
-{
-	__asm__ volatile ("outb %0,%1" : : "a" (__val), "dN" (__port));
-}
-
-static __inline void outw(unsigned short __val, unsigned short __port)
-{
-	__asm__ volatile ("outw %0,%1" : : "a" (__val), "dN" (__port));
-}
-
-static __inline unsigned char inb(unsigned short __port)
-{
-	unsigned char __val;
-	__asm__ volatile ("inb %1,%0" : "=a" (__val) : "dN" (__port));
-	return __val;
-}
-
-static __inline unsigned short inw(unsigned short __port)
-{
-	unsigned short __val;
-	__asm__ volatile ("inw %1,%0" : "=a" (__val) : "dN" (__port));
-	return __val;
-}
 
 typedef enum _EC_TRANSFER_DIRECTION
 {
@@ -57,30 +34,30 @@ static int ECTransfer(EC_TRANSFER_DIRECTION direction,
 	int pos = 0;
 	USHORT temp[2];
 	if(address % 4 > 0) {
-		outw((address & 0xFFFC) | MEC_EC_BYTE_ACCESS, MEC_LPC_ADDRESS_REGISTER0);
+		IoWrite16(MEC_LPC_ADDRESS_REGISTER0, (address & 0xFFFC) | MEC_EC_BYTE_ACCESS);
 		/* Unaligned start address */
 		for(int i = address % 4; i < 4; ++i) {
 			char* storage = &data[pos++];
 			if(direction == EC_XFER_WRITE)
-				outb(*storage, MEC_LPC_DATA_REGISTER0 + i);
+				IoWrite8(MEC_LPC_DATA_REGISTER0 + i, *storage);
 			else if(direction == EC_XFER_READ)
-				*storage = inb(MEC_LPC_DATA_REGISTER0 + i);
+				*storage = IoRead8(MEC_LPC_DATA_REGISTER0 + i);
 		}
 		address = (address + 4) & 0xFFFC;  // Up to next multiple of 4
 	}
 
 	if(size - pos >= 4) {
-		outw((address & 0xFFFC) | MEC_EC_LONG_ACCESS_AUTOINCREMENT, MEC_LPC_ADDRESS_REGISTER0);
+		IoWrite16(MEC_LPC_ADDRESS_REGISTER0, (address & 0xFFFC) | MEC_EC_LONG_ACCESS_AUTOINCREMENT);
 		// Chunk writing for anything large, 4 bytes at a time
 		// Writing to 804, 806 automatically increments dest address
 		while(size - pos >= 4) {
 			if(direction == EC_XFER_WRITE) {
 				memcpy(temp, &data[pos], sizeof(temp));
-				outw(temp[0], MEC_LPC_DATA_REGISTER0);
-				outw(temp[1], MEC_LPC_DATA_REGISTER2);
+				IoWrite16(MEC_LPC_DATA_REGISTER0, temp[0]);
+				IoWrite16(MEC_LPC_DATA_REGISTER2, temp[1]);
 			} else if(direction == EC_XFER_READ) {
-				temp[0] = inw(MEC_LPC_DATA_REGISTER0);
-				temp[1] = inw(MEC_LPC_DATA_REGISTER2);
+				temp[0] = IoRead16(MEC_LPC_DATA_REGISTER0);
+				temp[1] = IoRead16(MEC_LPC_DATA_REGISTER2);
 				memcpy(&data[pos], temp, sizeof(temp));
 			}
 
@@ -91,13 +68,13 @@ static int ECTransfer(EC_TRANSFER_DIRECTION direction,
 
 	if(size - pos > 0) {
 		// Unaligned remaining data - R/W it by byte
-		outw((address & 0xFFFC) | MEC_EC_BYTE_ACCESS, MEC_LPC_ADDRESS_REGISTER0);
+		IoWrite16(MEC_LPC_ADDRESS_REGISTER0, (address & 0xFFFC) | MEC_EC_BYTE_ACCESS);
 		for(int i = 0; i < (size - pos); ++i) {
 			char* storage = &data[pos + i];
 			if(direction == EC_XFER_WRITE)
-				outb(*storage, MEC_LPC_DATA_REGISTER0 + i);
+				IoWrite8(MEC_LPC_DATA_REGISTER0 + i, *storage);
 			else if(direction == EC_XFER_READ)
-				*storage = inb(MEC_LPC_DATA_REGISTER0 + i);
+				*storage = IoRead8(MEC_LPC_DATA_REGISTER0 + i);
 		}
 	}
 	return 0;
@@ -121,7 +98,7 @@ static int ECWaitForReady(int statusAddr, int timeoutUsec) {
 		 */
 		MicroSecondDelay(MIN(delay, timeoutUsec - i));
 
-		if(!(inb(statusAddr) & EC_LPC_STATUS_BUSY_MASK))
+		if(!(IoRead8(statusAddr) & EC_LPC_STATUS_BUSY_MASK))
 			return 0;
 
 		/* Increase the delay interval after a few rapid checks */
@@ -213,7 +190,7 @@ int ECSendCommandLPCv3(int command,
 	ECTransfer(EC_XFER_WRITE, 0, u.data, (USHORT)(outsize + sizeof(u.rq)));
 
 	/* Start the command */
-	outb(EC_COMMAND_PROTOCOL_3, EC_LPC_ADDR_HOST_CMD);
+	IoWrite8(EC_LPC_ADDR_HOST_CMD, EC_COMMAND_PROTOCOL_3);
 
 	if(ECWaitForReady(EC_LPC_ADDR_HOST_CMD, 1000000)) {
 		res = -EC_RES_TIMEOUT;
@@ -221,7 +198,7 @@ int ECSendCommandLPCv3(int command,
 	}
 
 	/* Check result */
-	i = inb(EC_LPC_ADDR_HOST_DATA);
+	i = IoRead8(EC_LPC_ADDR_HOST_DATA);
 	if(i) {
 		res = -EECRESULT - i;
 		goto Out;

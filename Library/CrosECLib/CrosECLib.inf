@@ -17,3 +17,4 @@
 [LibraryClasses]
   BaseLib
   TimerLib
+  IoLib
