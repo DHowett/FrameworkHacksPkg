@@ -32,7 +32,6 @@
   PcdLib
   FileHandleLib
   PrintLib
-  CrosECLib
   HiiLib # <- from ShellLib
   ShellLib
 

@@ -1,5 +1,11 @@
 #include <Uefi.h>
+
 #include <Library/CrosECLib.h>
+#include <Library/UefiBootServicesTableLib.h>
+
+#include <Protocol/CrosEC.h>
+
+EFI_CROSEC_PROTOCOL* gECProtocol = NULL;
 
 #define EC_CMD_UPDATE_KEYBOARD_MATRIX 0x3E0C
 struct keyboard_matrix_map {
@@ -16,6 +22,7 @@ struct ec_params_update_keyboard_matrix {
 EFI_STATUS
 EFIAPI
 FrameworkKeyMapDriverEntryPoint(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* SystemTable) {
+	EFI_STATUS Status = EFI_SUCCESS;
 	struct ec_params_update_keyboard_matrix request = {
 		.num_items = 1,
 		.write = 1,
@@ -29,6 +36,18 @@ FrameworkKeyMapDriverEntryPoint(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* 
 			},
 	};
 	char response[256];
-	ECSendCommandLPCv3(EC_CMD_UPDATE_KEYBOARD_MATRIX, 0, &request, sizeof(request), response, 256);
-	return EFI_ABORTED;
+
+	Status = gBS->LocateProtocol(&gEfiCrosECProtocolGuid, NULL, (VOID**)&gECProtocol);
+	if(EFI_ERROR(Status)) {
+		goto Out;
+	}
+
+	gECProtocol->SendCommand(EC_CMD_UPDATE_KEYBOARD_MATRIX, 0, &request, sizeof(request), response, 256);
+
+Out:
+	if(Status == EFI_SUCCESS) {
+		// "Initializing" drivers can safely return ABORTED to indicate that they have no further work to do
+		Status = EFI_ABORTED;
+	}
+	return Status;
 }

@@ -5,6 +5,7 @@
 #include <Library/UefiLib.h>
 #include <Library/UefiShellLib/UefiShellLib.h>
 
+#include <Protocol/CrosEC.h>
 #include <Protocol/Shell.h>
 #include <Protocol/ShellParameters.h>
 
@@ -15,6 +16,7 @@
 UINTN Argc;
 CHAR16** Argv;
 EFI_SHELL_PROTOCOL* mShellProtocol = NULL;
+EFI_CROSEC_PROTOCOL* gECProtocol = NULL;
 
 EFI_STATUS
 GetArg(VOID) {
@@ -39,19 +41,19 @@ EFI_STATUS cmd_version(int argc, CHAR16** argv) {
 	int rv = 0;
 	int unlocked = 0;
 
-	rv = ECSendCommandLPCv3(EC_CMD_GET_BUILD_INFO, 0, NULL, 0, buf, 248);
+	rv = gECProtocol->SendCommand(EC_CMD_GET_BUILD_INFO, 0, NULL, 0, buf, 248);
 	if(rv < 0)
 		goto EcOut;
 
 	// It's necessary to unlock SPI to read the RW version
 	FlashNotifyParams.flags = FLASH_ACCESS_SPI;
-	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+	rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
 	if(rv < 0)
 		goto EcOut;
 
 	unlocked = 1;
 
-	rv = ECSendCommandLPCv3(EC_CMD_GET_VERSION, 0, NULL, 0, &r, sizeof(r));
+	rv = gECProtocol->SendCommand(EC_CMD_GET_VERSION, 0, NULL, 0, &r, sizeof(r));
 	if(rv < 0)
 		goto EcOut;
 
@@ -72,7 +74,8 @@ EcOut:
 	if(unlocked) {
 		// last ditch effort: tell the EC we're done with SPI
 		FlashNotifyParams.flags = FLASH_ACCESS_SPI_DONE;
-		ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+		gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL,
+		                         0);
 		// discard the response; it won't help now
 		unlocked = 0;
 	}
@@ -123,7 +126,7 @@ EFI_STATUS cmd_flashread(int argc, CHAR16** argv) {
 	}
 
 	FlashNotifyParams.flags = FLASH_ACCESS_SPI;
-	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+	rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
 	if(rv < 0)
 		goto EcOut;
 
@@ -161,7 +164,8 @@ Out:
 	if(unlocked) {
 		// last ditch effort: tell the EC we're done with SPI
 		FlashNotifyParams.flags = FLASH_ACCESS_SPI_DONE;
-		ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+		gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL,
+		                         0);
 		// discard the response; it won't help now
 		unlocked = 0;
 	}
@@ -193,7 +197,7 @@ EFI_STATUS cmd_reboot(int argc, CHAR16** argv) {
 			p.flags |= EC_REBOOT_FLAG_ON_AP_SHUTDOWN;
 	}
 
-	rv = ECSendCommandLPCv3(EC_CMD_REBOOT_EC, 0, &p, sizeof(p), NULL, 0);
+	rv = gECProtocol->SendCommand(EC_CMD_REBOOT_EC, 0, &p, sizeof(p), NULL, 0);
 	// UNREACHABLE ON SUCCESS ON THE FRAMEWORK LAPTOP
 	if(rv < 0) {
 		PrintECResponse(rv);
@@ -208,13 +212,13 @@ EFI_STATUS cmd_console(int argc, CHAR16** argv) {
 	char buf[G_EC_MAX_RESPONSE] = {0};
 	int rv = 0;
 
-	rv = ECSendCommandLPCv3(EC_CMD_CONSOLE_SNAPSHOT, 0, NULL, 0, NULL, 0);
+	rv = gECProtocol->SendCommand(EC_CMD_CONSOLE_SNAPSHOT, 0, NULL, 0, NULL, 0);
 	if(rv < 0)
 		goto EcOut;
 
 	p.subcmd = CONSOLE_READ_RECENT;
 	do {
-		rv = ECSendCommandLPCv3(EC_CMD_CONSOLE_READ, 1, &p, sizeof(p), buf, sizeof(buf));
+		rv = gECProtocol->SendCommand(EC_CMD_CONSOLE_READ, 1, &p, sizeof(p), buf, sizeof(buf));
 		if(rv < 0)
 			goto EcOut;
 
@@ -262,6 +266,12 @@ UefiMain(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* SystemTable) {
 
 	if(Argc < 2) {
 		goto OutHelp;
+	}
+
+	Status = gBS->LocateProtocol(&gEfiCrosECProtocolGuid, NULL, (VOID**)&gECProtocol);
+	if(EFI_ERROR(Status)) {
+		Print(L"Cannot initialize EC communication: %r\n", Status);
+		return Status;
 	}
 
 	for(int i = 0; i < ARRAY_SIZE(commands); ++i) {

@@ -1,14 +1,17 @@
 #include <Library/CrosECLib.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiShellLib/UefiShellLib.h>
+#include <Protocol/CrosEC.h>
 
 #include "EC.h"
 #include "FWUpdate.h"
 #include "Flash.h"
 
+extern EFI_CROSEC_PROTOCOL* gECProtocol;
+
 EFI_STATUS CheckReadyForECFlash() {
 	UINT8 ecid[2];
-	ECReadMemoryLPC(EC_MEMMAP_ID, ecid, 2);
+	gECProtocol->ReadMemory(EC_MEMMAP_ID, ecid, 2);
 	if(ecid[0] != 'E' || ecid[1] != 'C') {
 		Print(L"This machine doesn't look like it has an EC\n");
 		return EFI_INVALID_PARAMETER;
@@ -16,9 +19,9 @@ EFI_STATUS CheckReadyForECFlash() {
 
 	UINT32 batteryLfcc, batteryCap;
 	UINT8 batteryFlag;
-	ECReadMemoryLPC(EC_MEMMAP_BATT_FLAG, &batteryFlag, sizeof(batteryFlag));
-	ECReadMemoryLPC(EC_MEMMAP_BATT_LFCC, &batteryLfcc, sizeof(batteryLfcc));
-	ECReadMemoryLPC(EC_MEMMAP_BATT_CAP, &batteryCap, sizeof(batteryCap));
+	gECProtocol->ReadMemory(EC_MEMMAP_BATT_FLAG, &batteryFlag, sizeof(batteryFlag));
+	gECProtocol->ReadMemory(EC_MEMMAP_BATT_LFCC, &batteryLfcc, sizeof(batteryLfcc));
+	gECProtocol->ReadMemory(EC_MEMMAP_BATT_CAP, &batteryCap, sizeof(batteryCap));
 
 	if(0 == (batteryFlag & EC_BATT_FLAG_AC_PRESENT)
 			|| (
@@ -128,7 +131,7 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		goto Out;
 	}
 
-	rv = ECSendCommandLPCv3(EC_CMD_GET_VERSION, 0, NULL, 0, &VersionResponse, sizeof(VersionResponse));
+	rv = gECProtocol->SendCommand(EC_CMD_GET_VERSION, 0, NULL, 0, &VersionResponse, sizeof(VersionResponse));
 	if(rv < 0)
 		goto EcOut;
 
@@ -181,11 +184,11 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	Print(L"************************************************\n\n");
 	Print(L"Unlocking flash... ");
 	FlashNotifyParams.flags = FLASH_ACCESS_SPI;
-	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+	rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
 	if(rv < 0)
 		goto EcOut;
 	FlashNotifyParams.flags = FLASH_FIRMWARE_START;
-	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+	rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
 	if(rv < 0)
 		goto EcOut;
 	Print(L"OK\n");
@@ -251,11 +254,11 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 
 	Print(L"Locking flash... ");
 	FlashNotifyParams.flags = FLASH_ACCESS_SPI_DONE;
-	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+	rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
 	if(rv < 0)
 		goto EcOut;
 	FlashNotifyParams.flags = FLASH_FIRMWARE_DONE;
-	rv = ECSendCommandLPCv3(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+	rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
 	if(rv < 0)
 		goto EcOut;
 	Print(L"OK\n");

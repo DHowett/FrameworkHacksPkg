@@ -17,6 +17,9 @@
 [LibraryClasses]
   BaseLib
   TimerLib
+  UefiBootServicesTableLib
   UefiDriverEntryPoint
-  CrosECLib
   HashLib
+
+[Protocols]
+  gEfiCrosECProtocolGuid            ## CONSUMES

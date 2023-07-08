@@ -30,7 +30,6 @@
   TimerLib|UefiCpuPkg/Library/CpuTimerLib/BaseCpuTimerLib.inf
 
   IoLib|MdePkg/Library/BaseIoLibIntrinsic/BaseIoLibIntrinsic.inf
-  CrosECLib|FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
 
   ShellLib|ShellPkg/Library/UefiShellLib/UefiShellLib.inf
   HiiLib|MdeModulePkg/Library/UefiHiiLib/UefiHiiLib.inf
@@ -42,10 +41,19 @@
   Tpm2CommandLib|SecurityPkg/Library/Tpm2CommandLib/Tpm2CommandLib.inf
   Tpm2DeviceLib|SecurityPkg/Library/Tpm2DeviceLibTcg2/Tpm2DeviceLibTcg2.inf
 
+  # Just to be safe, everything in this DSC should link at least one EC communication library
+  NULL|FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
+
 !include MdePkg/MdeLibs.dsc.inc
 
 [Components]
-  FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
   FrameworkHacksPkg/Drivers/FrameworkKeyMapDriver/FrameworkKeyMapDriver.inf
   FrameworkHacksPkg/Drivers/ChassisIntrusionPCRMeasurementDriver/ChassisIntrusionPCRMeasurementDriver.inf
   FrameworkHacksPkg/Application/ECTool/ECTool.inf
+
+  # Example - How to customize the EC implementation for one application
+  #FrameworkHacksPkg/Application/ECTool/ECTool.inf {
+  #  <LibraryClasses>
+  #    NULL|FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
+  #    NULL|FrameworkHacksPkg/Library/CrosECLibNull/CrosECLibNull.inf
+  #}

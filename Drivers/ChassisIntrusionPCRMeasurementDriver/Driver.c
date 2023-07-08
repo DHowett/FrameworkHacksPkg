@@ -1,6 +1,12 @@
 #include <Uefi.h>
+
 #include <Library/CrosECLib.h>
 #include <Library/HashLib.h>
+#include <Library/UefiBootServicesTableLib.h>
+
+#include <Protocol/CrosEC.h>
+
+EFI_CROSEC_PROTOCOL* gECProtocol = NULL;
 
 #define EC_CMD_CHASSIS_INTRUSION 0x3E09
 
@@ -24,7 +30,13 @@ EntryPoint(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* SystemTable) {
 	struct ec_response_chassis_intrusion_control response = {};
 	TPML_DIGEST_VALUES DigestList;
 	int rv;
-	rv = ECSendCommandLPCv3(EC_CMD_CHASSIS_INTRUSION, 0, &request, sizeof(request), &response, sizeof(response));
+
+	Status = gBS->LocateProtocol(&gEfiCrosECProtocolGuid, NULL, (VOID**)&gECProtocol);
+	if(EFI_ERROR(Status)) {
+		goto Out;
+	}
+
+	rv = gECProtocol->SendCommand(EC_CMD_CHASSIS_INTRUSION, 0, &request, sizeof(request), &response, sizeof(response));
 	if(rv < 0) {
 		Status = EFI_DEVICE_ERROR;
 		goto Out;

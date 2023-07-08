@@ -1,9 +1,12 @@
 #include <Library/BaseMemoryLib.h>
 #include <Library/CrosECLib.h>
 #include <Library/UefiLib.h>
+#include <Protocol/CrosEC.h>
 
 #include "EC.h"
 #include "Flash.h"
+
+extern EFI_CROSEC_PROTOCOL* gECProtocol;
 
 enum ec_status flash_read(int offset, int size, char* buffer) {
 	struct ec_params_flash_read p;
@@ -12,7 +15,7 @@ enum ec_status flash_read(int offset, int size, char* buffer) {
 	for(int i = 0; i < size; i += chunk) {
 		p.offset = offset + i;
 		p.size = MIN(size - i, chunk);
-		int rv = ECSendCommandLPCv3(EC_CMD_FLASH_READ, 0, &p, sizeof(p), buf, p.size);
+		int rv = gECProtocol->SendCommand(EC_CMD_FLASH_READ, 0, &p, sizeof(p), buf, p.size);
 		if(rv < 0) {
 			Print(L"*** FLASH READ **FAILED** AT OFFSET %x: %d\n", p.offset, rv);
 			return rv;
@@ -24,7 +27,7 @@ enum ec_status flash_read(int offset, int size, char* buffer) {
 
 enum ec_status flash_write(int offset, int size, char* buffer) {
 	struct ec_response_flash_info_1 flashInfo;
-	int rv = ECSendCommandLPCv3(EC_CMD_FLASH_INFO, 1, NULL, 0, &flashInfo, sizeof(flashInfo));
+	int rv = gECProtocol->SendCommand(EC_CMD_FLASH_INFO, 1, NULL, 0, &flashInfo, sizeof(flashInfo));
 	if(rv < 0) {
 		Print(L"Failed to query flash info\n");
 		return rv;
@@ -37,7 +40,7 @@ enum ec_status flash_write(int offset, int size, char* buffer) {
 		p->offset = offset + i;
 		p->size = MIN(size - i, step);
 		CopyMem(p + 1, buffer + i, p->size);
-		rv = ECSendCommandLPCv3(EC_CMD_FLASH_WRITE, 1, p, sizeof(*p) + p->size, NULL, 0);
+		rv = gECProtocol->SendCommand(EC_CMD_FLASH_WRITE, 1, p, sizeof(*p) + p->size, NULL, 0);
 		if(rv < 0) {
 			Print(L"*** FLASH WRITE **FAILED** AT OFFSET %x: %d\n", p->offset, rv);
 			return rv;
@@ -50,5 +53,5 @@ enum ec_status flash_erase(int offset, int size) {
 	struct ec_params_flash_erase p;
 	p.offset = offset;
 	p.size = size;
-	return ECSendCommandLPCv3(EC_CMD_FLASH_ERASE, 0, &p, sizeof(p), NULL, 0);
+	return gECProtocol->SendCommand(EC_CMD_FLASH_ERASE, 0, &p, sizeof(p), NULL, 0);
 }

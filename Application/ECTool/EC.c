@@ -1,5 +1,6 @@
 #include <Library/CrosECLib.h>
 #include <Library/UefiLib.h>
+#include <Protocol/CrosEC.h>
 
 static const CHAR16* mEcErrorMessages[] = {
 	L"success",
