@@ -1,0 +1,27 @@
+[Defines]
+  INF_VERSION    = 0x00010005
+  BASE_NAME      = FrameworkPanicCaptureDriver
+  FILE_GUID      = 24AEE735-CF41-4026-AC80-A00FC3A90D0B
+  MODULE_TYPE    = UEFI_DRIVER
+  VERSION_STRING = 1.0
+  ENTRY_POINT    = EntryPoint
+
+[Sources]
+  Driver.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  FrameworkHacksPkg/FrameworkHacksPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  TimerLib
+  BaseMemoryLib
+  MemoryAllocationLib
+  UefiBootServicesTableLib
+  UefiRuntimeServicesTableLib
+  UefiDriverEntryPoint
+
+[Protocols]
+  gEfiCrosECProtocolGuid            ## CONSUMES
+  gEfiRealTimeClockArchProtocolGuid ## CONSUMES
