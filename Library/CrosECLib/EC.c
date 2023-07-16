@@ -96,7 +96,7 @@ static int ECWaitForReady(int statusAddr, int timeoutUsec) {
 		 * busy flag is set by hardware.  Minor issue in any case,
 		 * since the initial delay is very short.
 		 */
-		MicroSecondDelay(MIN(delay, timeoutUsec - i));
+		gBS->Stall(MIN(delay, timeoutUsec - i));
 
 		if(!(IoRead8(statusAddr) & EC_LPC_STATUS_BUSY_MASK))
 			return 0;
