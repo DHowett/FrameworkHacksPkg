@@ -147,7 +147,7 @@ static EFI_HANDLE mProtocolHandle = NULL;
 
 EFI_STATUS
 EFIAPI
-CrosECLibNullConstructor() {
+CrosECNullLibConstructor() {
 	EFI_STATUS Status = EFI_SUCCESS;
 	gMutableFlash = (UINT8*)AllocatePool(gFlashLen);
 	SetMem(gMutableFlash, gFlashLen, 0xFF);
@@ -163,7 +163,7 @@ CrosECLibNullConstructor() {
 
 EFI_STATUS
 EFIAPI
-CrosECLibNullDestructor() {
+CrosECNullLibDestructor() {
 	EFI_STATUS Status = EFI_SUCCESS;
 	FreePool(gMutableFlash);
 	gMutableFlash = NULL;

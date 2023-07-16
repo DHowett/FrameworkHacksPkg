@@ -55,5 +55,5 @@
   #FrameworkHacksPkg/Application/ECTool/ECTool.inf {
   #  <LibraryClasses>
   #    NULL|FrameworkHacksPkg/Library/MicrochipCrosECLib/MicrochipCrosECLib.inf
-  #    NULL|FrameworkHacksPkg/Library/CrosECLibNull/CrosECLibNull.inf
+  #    NULL|FrameworkHacksPkg/Library/CrosECNullLib/CrosECNullLib.inf
   #}

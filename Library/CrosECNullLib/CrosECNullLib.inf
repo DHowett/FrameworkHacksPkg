@@ -1,13 +1,13 @@
 [Defines]
   INF_VERSION                    = 0x00010005
-  BASE_NAME                      = CrosECLibNull
+  BASE_NAME                      = CrosECNullLib
   FILE_GUID                      = D8D6C902-86E7-4213-970B-AA67B35B02DF
   MODULE_TYPE                    = BASE
   VERSION_STRING                 = 1.0
-  LIBRARY_CLASS                  = CrosECLibNull
+  LIBRARY_CLASS                  = CrosECNullLib
   VALID_ARCHITECTURES            = X64
-  CONSTRUCTOR                    = CrosECLibNullConstructor
-  DESTRUCTOR                     = CrosECLibNullDestructor
+  CONSTRUCTOR                    = CrosECNullLibConstructor
+  DESTRUCTOR                     = CrosECNullLibDestructor
 
 [Sources]
   ECNull.c
