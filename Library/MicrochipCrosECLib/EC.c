@@ -260,7 +260,7 @@ static EFI_HANDLE mProtocolHandle = NULL;
 
 EFI_STATUS
 EFIAPI
-CrosECMecLpcLibConstructor() {
+MicrochipCrosECLibConstructor() {
 	EFI_STATUS Status = EFI_SUCCESS;
 	UCHAR Id[2];
 	if(2 == ECReadMemoryMecLpc(EC_MEMMAP_ID, Id, 2)) {
@@ -279,7 +279,7 @@ CrosECMecLpcLibConstructor() {
 
 EFI_STATUS
 EFIAPI
-CrosECMecLpcLibDestructor() {
+MicrochipCrosECLibDestructor() {
 	EFI_STATUS Status = EFI_SUCCESS;
 
 	if(mProtocolHandle != NULL) {

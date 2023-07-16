@@ -42,7 +42,7 @@
   Tpm2DeviceLib|SecurityPkg/Library/Tpm2DeviceLibTcg2/Tpm2DeviceLibTcg2.inf
 
   # Just to be safe, everything in this DSC should link at least one EC communication library
-  NULL|FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
+  NULL|FrameworkHacksPkg/Library/MicrochipCrosECLib/MicrochipCrosECLib.inf
 
 !include MdePkg/MdeLibs.dsc.inc
 
@@ -54,6 +54,6 @@
   # Example - How to customize the EC implementation for one application
   #FrameworkHacksPkg/Application/ECTool/ECTool.inf {
   #  <LibraryClasses>
-  #    NULL|FrameworkHacksPkg/Library/CrosECLib/CrosECLib.inf
+  #    NULL|FrameworkHacksPkg/Library/MicrochipCrosECLib/MicrochipCrosECLib.inf
   #    NULL|FrameworkHacksPkg/Library/CrosECLibNull/CrosECLibNull.inf
   #}

@@ -1,13 +1,13 @@
 [Defines]
   INF_VERSION                    = 0x00010005
-  BASE_NAME                      = CrosECLib
+  BASE_NAME                      = MicrochipCrosECLib
   FILE_GUID                      = d8558eb3-73c3-49ab-8020-80f920b3945c
   MODULE_TYPE                    = BASE
   VERSION_STRING                 = 1.0
-  LIBRARY_CLASS                  = CrosECLib
+  LIBRARY_CLASS                  = MicrochipCrosECLib
   VALID_ARCHITECTURES            = X64
-  CONSTRUCTOR                    = CrosECMecLpcLibConstructor
-  DESTRUCTOR                     = CrosECMecLpcLibDestructor
+  CONSTRUCTOR                    = MicrochipCrosECLibConstructor
+  DESTRUCTOR                     = MicrochipCrosECLibDestructor
 
 [Sources]
   EC.c
