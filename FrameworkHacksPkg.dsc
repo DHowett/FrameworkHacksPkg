@@ -52,6 +52,7 @@
   FrameworkHacksPkg/Drivers/ChassisIntrusionPCRMeasurementDriver/ChassisIntrusionPCRMeasurementDriver.inf
   FrameworkHacksPkg/Application/ECTool/ECTool.inf
   FrameworkHacksPkg/Drivers/FrameworkPanicCaptureDriver/FrameworkPanicCaptureDriver.inf
+  FrameworkHacksPkg/Application/ECTest/ECTest.inf
 
   # Example - How to customize the EC implementation for one application
   #FrameworkHacksPkg/Application/ECTool/ECTool.inf {

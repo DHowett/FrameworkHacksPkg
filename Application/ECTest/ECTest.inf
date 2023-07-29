@@ -1,0 +1,45 @@
+[Defines]
+  INF_VERSION                    = 0x00010006
+  BASE_NAME                      = ECTest
+  FILE_GUID                      = 7e552d8e-2e39-11ee-8e09-5fd69fb81b97
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = UefiMain
+
+[Sources]
+  ECTest.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  ShellPkg/ShellPkg.dec
+  FrameworkHacksPkg/FrameworkHacksPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  UefiApplicationEntryPoint
+  UefiLib
+  DebugLib
+  MemoryAllocationLib
+  UefiRuntimeServicesTableLib
+  UefiBootServicesTableLib
+  DevicePathLib
+  BaseMemoryLib
+  PcdLib
+  FileHandleLib
+  PrintLib
+  HiiLib # <- from ShellLib
+  ShellLib
+
+[Protocols]
+  gEfiSimpleTextInputExProtocolGuid                       ## CONSUMES
+  gEfiSimpleTextInProtocolGuid                            ## CONSUMES
+  gEfiSimpleTextOutProtocolGuid                           ## CONSUMES
+  gEfiSimpleFileSystemProtocolGuid                        ## SOMETIMES_CONSUMES
+  gEfiLoadedImageProtocolGuid                             ## CONSUMES
+  gEfiComponentName2ProtocolGuid                          ## SOMETIMES_CONSUMES
+  gEfiUnicodeCollation2ProtocolGuid                       ## CONSUMES
+  gEfiDevicePathProtocolGuid                              ## CONSUMES
+  gEfiShellProtocolGuid                                   ## CONSUMES
+  gEfiShellParametersProtocolGuid                         ## CONSUMES
+  gEfiCrosECProtocolGuid                                  ## CONSUMES
