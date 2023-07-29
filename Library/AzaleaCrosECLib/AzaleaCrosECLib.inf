@@ -1,0 +1,26 @@
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = AzaleaCrosECLib
+  FILE_GUID                      = 9cb6fd44-2e38-11ee-a3c7-6be6685ef996
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = AzaleaCrosECLib
+  VALID_ARCHITECTURES            = X64
+  CONSTRUCTOR                    = AzaleaCrosECLibConstructor
+  DESTRUCTOR                     = AzaleaCrosECLibDestructor
+
+[Sources]
+  EC.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  FrameworkHacksPkg/FrameworkHacksPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  TimerLib
+  DevicePathLib
+  IoLib
+
+[Protocols]
+  gEfiCrosECProtocolGuid ## PRODUCES

@@ -43,6 +43,7 @@
 
   # Just to be safe, everything in this DSC should link at least one EC communication library
   NULL|FrameworkHacksPkg/Library/MicrochipCrosECLib/MicrochipCrosECLib.inf
+  NULL|FrameworkHacksPkg/Library/AzaleaCrosECLib/AzaleaCrosECLib.inf
 
 !include MdePkg/MdeLibs.dsc.inc
 
