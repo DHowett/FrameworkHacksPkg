@@ -13,8 +13,8 @@ DISTDIR="$DISTBASE/_dist"
 cp -r Dist "$DISTDIR"
 mkdir -p "$DISTDIR/EFI/Boot"
 
-cp -v "$WORKSPACE/Build/Shell/RELEASE_GCC5/X64/Shell_7C04A583-9E3E-4f1c-AD65-E05268D0B4D1.efi" "$DISTDIR/EFI/Boot/bootx64.efi"
-cp -v "$WORKSPACE/Build/FrameworkHacksPkg/RELEASE_GCC5/X64/ECTool.efi" "$DISTDIR/"
+cp -v "$WORKSPACE/Build/Shell/RELEASE_GCCNOLTO/X64/Shell_7C04A583-9E3E-4f1c-AD65-E05268D0B4D1.efi" "$DISTDIR/EFI/Boot/bootx64.efi"
+cp -v "$WORKSPACE/Build/FrameworkHacksPkg/RELEASE_GCCNOLTO/X64/ECTool.efi" "$DISTDIR/"
 
 OUT="$PWD/ECTool-x64-$(git describe --always --abbrev).zip"
 
