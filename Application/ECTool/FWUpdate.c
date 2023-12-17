@@ -7,6 +7,42 @@
 #include "FWUpdate.h"
 #include "Flash.h"
 
+#pragma pack (push, 1)
+// From ec:common/fmap.c
+#define FMAP_NAMELEN 32
+#define FMAP_SIGNATURE "__FMAP__"
+#define FMAP_SIGNATURE_SIZE 8
+typedef struct _EC_IMAGE_FMAP_HEADER {
+	CHAR8  Signature[FMAP_SIGNATURE_SIZE];
+	UINT8  VerMajor;
+	UINT8  VerMinor;
+	UINT64 Base;
+	UINT32 Size;
+	CHAR8  Name[FMAP_NAMELEN];
+	UINT16 NAreas;
+} EC_IMAGE_FMAP_HEADER;
+typedef struct _EC_IMAGE_FMAP_AREA_HEADER {
+	UINT32 Offset;
+	UINT32 Size;
+	CHAR8  Name[FMAP_NAMELEN];
+	UINT16 Flags;
+} EC_IMAGE_FMAP_AREA_HEADER;
+#pragma pack (pop)
+
+static EC_IMAGE_FMAP_HEADER* GetImageFlashMap(const void* Buffer, UINTN Length) {
+	return (EC_IMAGE_FMAP_HEADER*)ScanMem64(Buffer, Length, 0x5F5F50414D465F5FULL /* __FMAP__, little-endian */);
+}
+
+static EC_IMAGE_FMAP_AREA_HEADER* GetImageFlashArea(EC_IMAGE_FMAP_HEADER* Map, CHAR8* AreaName) {
+	EC_IMAGE_FMAP_AREA_HEADER* FmapAreas = (EC_IMAGE_FMAP_AREA_HEADER*)(Map + 1);
+	for(int i = 0; i < Map->NAreas; ++i) {
+		if (0 == AsciiStrnCmp(AreaName, FmapAreas[i].Name, FMAP_NAMELEN)) {
+			return FmapAreas + i;
+		}
+	}
+	return NULL;
+}
+
 extern EFI_CROSEC_PROTOCOL* gECProtocol;
 
 EFI_STATUS CheckReadyForECFlash() {
@@ -41,9 +77,6 @@ EFI_STATUS CheckReadyForECFlash() {
 #define FLASH_RW_BASE 0x40000
 #define FLASH_RW_SIZE 0x39000
 
-// This accounts for the MCHP header and the LFW reset vectors
-#define FLASH_MCHP_VERSION_OFFSET 0x2434
-
 EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	EFI_STATUS Status = EFI_SUCCESS;
 	SHELL_FILE_HANDLE FirmwareFile = NULL;
@@ -61,6 +94,8 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	int force = 0;
 	BOOLEAN flash_ro = TRUE, flash_rw = TRUE;
 	CHAR16* filename = NULL;
+	EC_IMAGE_FMAP_HEADER* IncomingImageFlashMap = NULL;
+	EC_IMAGE_FMAP_AREA_HEADER* IncomingImageRoFridArea = NULL;
 
 	for(int i = 1; i < argc; ++i) {
 		if(StrCmp(argv[i], L"-f") == 0)
@@ -146,7 +181,22 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		}
 	}
 
-	FirmwareBoardId = FirmwareBuffer + FLASH_MCHP_VERSION_OFFSET;
+	IncomingImageFlashMap = GetImageFlashMap(FirmwareBuffer, FileInfo->FileSize);
+	if(!IncomingImageFlashMap) {
+		Print(L"Failed to find flash map header in incoming firmware image.\n");
+		Status = EFI_ABORTED;
+		goto Out;
+	}
+
+	IncomingImageRoFridArea = GetImageFlashArea(IncomingImageFlashMap, "RO_FRID");
+	if(!IncomingImageRoFridArea) {
+		Print(L"Failed to find RO_FRID (firmware ID) section in incoming firmware image.\n");
+		Status = EFI_ABORTED;
+		goto Out;
+	}
+
+	FirmwareBoardId = FirmwareBuffer + IncomingImageRoFridArea->Offset;
+
 	for(; FirmwareBoardId[FirmwareBoardIdLength] != '_' && FirmwareBoardIdLength < 32; ++FirmwareBoardIdLength)
 		;
 	if(force < 2 && 0 != AsciiStrnCmp(CurrentBoardId, FirmwareBoardId, FirmwareBoardIdLength)) {
