@@ -74,6 +74,8 @@ EFI_STATUS CheckReadyForECFlash() {
 #define FLASH_REGION_BOOTBLOCK 0x01
 #define FLASH_REGION_SKIP      0x02
 
+#define FLASH_DEVICE_REQUIRES_UNLOCK 0x1
+
 typedef struct _FLASH_REGION {
 	const CHAR8* name;
 	UINTN base;
@@ -114,12 +116,12 @@ const FLASH_REGION unknown_board_flash_regions[] = {
 const FLASH_MAP unknown_board_flash_map = {
 	"unknown",
 	unknown_board_flash_regions,
-	0,
+	FLASH_DEVICE_REQUIRES_UNLOCK,
 };
 
 const FLASH_MAP flash_maps[] = {
-	{ "hx20", hx_flash_regions, 0 },
-	{ "hx30", hx_flash_regions, 0 },
+	{ "hx20", hx_flash_regions, FLASH_DEVICE_REQUIRES_UNLOCK },
+	{ "hx30", hx_flash_regions, FLASH_DEVICE_REQUIRES_UNLOCK },
 	{ "azalea", azalea_lotus_flash_regions, 0 },
 	{ "lotus", azalea_lotus_flash_regions, 0 },
 	{ NULL, NULL, 0 },
@@ -327,16 +329,18 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	Print(L"************************************************\n");
 	Print(L"*** DO NOT UNPLUG OR POWER OFF YOUR COMPUTER ***\n");
 	Print(L"************************************************\n\n");
-	Print(L"Unlocking flash... ");
-	FlashNotifyParams.flags = FLASH_ACCESS_SPI;
-	rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
-	if(rv < 0)
-		goto EcOut;
-	FlashNotifyParams.flags = FLASH_FIRMWARE_START;
-	rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
-	if(rv < 0)
-		goto EcOut;
-	Print(L"OK\n");
+	if(FinalFlashMap->flags & FLASH_DEVICE_REQUIRES_UNLOCK) {
+		Print(L"Unlocking flash... ");
+		FlashNotifyParams.flags = FLASH_ACCESS_SPI;
+		rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+		if(rv < 0)
+			goto EcOut;
+		FlashNotifyParams.flags = FLASH_FIRMWARE_START;
+		rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+		if(rv < 0)
+			goto EcOut;
+		Print(L"OK\n");
+	}
 
 	while(RegionFlashMask) {
 		// We erase and flash the regions in reverse order; bailing out
@@ -376,16 +380,18 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		}
 	}
 
-	Print(L"Locking flash... ");
-	FlashNotifyParams.flags = FLASH_ACCESS_SPI_DONE;
-	rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
-	if(rv < 0)
-		goto EcOut;
-	FlashNotifyParams.flags = FLASH_FIRMWARE_DONE;
-	rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
-	if(rv < 0)
-		goto EcOut;
-	Print(L"OK\n");
+	if(FinalFlashMap->flags & FLASH_DEVICE_REQUIRES_UNLOCK) {
+		Print(L"Locking flash... ");
+		FlashNotifyParams.flags = FLASH_ACCESS_SPI_DONE;
+		rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+		if(rv < 0)
+			goto EcOut;
+		FlashNotifyParams.flags = FLASH_FIRMWARE_DONE;
+		rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
+		if(rv < 0)
+			goto EcOut;
+		Print(L"OK\n");
+	}
 
 	Print(L"\nLooks like it worked?\nConsider running `ectool reboot` to reset the EC/AP.\n");
 
