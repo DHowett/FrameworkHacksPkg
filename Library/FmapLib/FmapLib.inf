@@ -1,0 +1,19 @@
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = FmapLib
+  FILE_GUID                      = BC035A1E-9D49-11EE-B9E2-FB78C2F53D7F
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = FmapLib
+  VALID_ARCHITECTURES            = X64
+
+[Sources]
+  Fmap.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  FrameworkHacksPkg/FrameworkHacksPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  UefiLib

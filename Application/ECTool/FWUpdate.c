@@ -1,47 +1,12 @@
 #include <Library/CrosECLib.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiShellLib/UefiShellLib.h>
+#include <Library/FmapLib.h>
 #include <Protocol/CrosEC.h>
 
 #include "EC.h"
 #include "FWUpdate.h"
 #include "Flash.h"
-
-#pragma pack (push, 1)
-// From ec:common/fmap.c
-#define FMAP_NAMELEN 32
-#define FMAP_SIGNATURE "__FMAP__"
-#define FMAP_SIGNATURE_SIZE 8
-typedef struct _EC_IMAGE_FMAP_HEADER {
-	CHAR8  Signature[FMAP_SIGNATURE_SIZE];
-	UINT8  VerMajor;
-	UINT8  VerMinor;
-	UINT64 Base;
-	UINT32 Size;
-	CHAR8  Name[FMAP_NAMELEN];
-	UINT16 NAreas;
-} EC_IMAGE_FMAP_HEADER;
-typedef struct _EC_IMAGE_FMAP_AREA_HEADER {
-	UINT32 Offset;
-	UINT32 Size;
-	CHAR8  Name[FMAP_NAMELEN];
-	UINT16 Flags;
-} EC_IMAGE_FMAP_AREA_HEADER;
-#pragma pack (pop)
-
-static EC_IMAGE_FMAP_HEADER* GetImageFlashMap(const void* Buffer, UINTN Length) {
-	return (EC_IMAGE_FMAP_HEADER*)ScanMem64(Buffer, Length, 0x5F5F50414D465F5FULL /* __FMAP__, little-endian */);
-}
-
-static EC_IMAGE_FMAP_AREA_HEADER* GetImageFlashArea(EC_IMAGE_FMAP_HEADER* Map, CHAR8* AreaName) {
-	EC_IMAGE_FMAP_AREA_HEADER* FmapAreas = (EC_IMAGE_FMAP_AREA_HEADER*)(Map + 1);
-	for(int i = 0; i < Map->NAreas; ++i) {
-		if (0 == AsciiStrnCmp(AreaName, FmapAreas[i].Name, FMAP_NAMELEN)) {
-			return FmapAreas + i;
-		}
-	}
-	return NULL;
-}
 
 extern EFI_CROSEC_PROTOCOL* gECProtocol;
 

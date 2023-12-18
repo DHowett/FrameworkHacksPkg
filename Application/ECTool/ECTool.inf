@@ -34,6 +34,7 @@
   PrintLib
   HiiLib # <- from ShellLib
   ShellLib
+  FmapLib
 
 [Protocols]
   gEfiSimpleTextInputExProtocolGuid                       ## CONSUMES

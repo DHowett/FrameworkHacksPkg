@@ -41,6 +41,8 @@
   Tpm2CommandLib|SecurityPkg/Library/Tpm2CommandLib/Tpm2CommandLib.inf
   Tpm2DeviceLib|SecurityPkg/Library/Tpm2DeviceLibTcg2/Tpm2DeviceLibTcg2.inf
 
+  FmapLib|FrameworkHacksPkg/Library/FmapLib/FmapLib.inf
+
   # Just to be safe, everything in this DSC should link at least one EC communication library
   NULL|FrameworkHacksPkg/Library/MicrochipCrosECLib/MicrochipCrosECLib.inf
   NULL|FrameworkHacksPkg/Library/AzaleaCrosECLib/AzaleaCrosECLib.inf
