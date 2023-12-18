@@ -108,6 +108,8 @@ ECSendCommandNullLpc(UINTN command, UINTN version, const void* outdata, UINTN ou
 		case EC_CMD_FLASH_READ: {  // flash read
 			struct ec_params_flash_read* p = (struct ec_params_flash_read*)outdata;
 			CopyMem(indata, &gMutableFlash[p->offset], MIN(insize, p->size));
+			// If you write the entire 512kb flash with a 457ns stall per 240 bytes, it will take one second.
+			gBS->Stall(457);
 			return MIN(insize, p->size);
 		}
 		case EC_CMD_FLASH_WRITE: {  // flash write
@@ -117,12 +119,15 @@ ECSendCommandNullLpc(UINTN command, UINTN version, const void* outdata, UINTN ou
 				gMutableFlash[p->offset + i] &= ((char*)(p + 1))[i];
 			}
 			flashBytesWritten += p->size;
+			// If you write the entire 512kb flash with a 457ns stall per 240 bytes, it will take one second.
+			gBS->Stall(457);
 			return EC_RES_SUCCESS;
 		}
 		case EC_CMD_FLASH_ERASE: {
 			struct ec_params_flash_erase* p = (struct ec_params_flash_erase*)outdata;
 			DebugPrint(DEBUG_VERBOSE, "FLASH_ERASE: %x for %d blocks\n", p->offset, p->size / 4096);
 			SetMem(&gMutableFlash[p->offset], p->size, 0xff);
+			gBS->Stall(500000); // Takes a half second.
 			flashBytesErased += p->size;
 			return EC_RES_SUCCESS;
 		}
