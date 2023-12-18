@@ -62,3 +62,5 @@
   #    NULL|FrameworkHacksPkg/Library/MicrochipCrosECLib/MicrochipCrosECLib.inf
   #    NULL|FrameworkHacksPkg/Library/CrosECNullLib/CrosECNullLib.inf
   #}
+
+  FrameworkHacksPkg/Drivers/CrosECDriver/CrosECDriver.inf

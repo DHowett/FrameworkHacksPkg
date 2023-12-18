@@ -1,0 +1,23 @@
+[Defines]
+  INF_VERSION    = 0x00010005
+  BASE_NAME      = CrosECDriver
+  FILE_GUID      = C1132F5D-1733-431B-A78B-1E6ABA61E3F6
+  MODULE_TYPE    = UEFI_DRIVER
+  VERSION_STRING = 1.0
+  ENTRY_POINT    = DriverEntryPoint
+
+[Sources]
+  Driver.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  FrameworkHacksPkg/FrameworkHacksPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  TimerLib
+  UefiLib
+  UefiDriverEntryPoint
+
+[Protocols]
+  gEfiCrosECProtocolGuid ## PRODUCES CONSUMES
