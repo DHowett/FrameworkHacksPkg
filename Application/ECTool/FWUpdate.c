@@ -172,7 +172,7 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		Print(L"Usage: ectool reflash [options] FILE\n"
 		      L"\n"
 		      L"Attempts to safely reflash the Framework Laptop's EC\n"
-		      L"Preserves flash region 3C000-3FFFF and 79000-7FFFF.\n"
+		      L"Preserves vital product data and configuration bits.\n"
 		      L"\n"
 		      L"Options:\n"
 		      L"    --ro        Only reflash the RO portion (and bootloader)\n"
