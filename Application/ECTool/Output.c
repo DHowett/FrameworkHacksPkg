@@ -11,7 +11,7 @@ static EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* Sto;
 
 #define MAX_PRINT_BUFFER_SIZE 4096
 
-EFI_STATUS PrintWithAttributes(UINTN Attribute, IN CONST CHAR16* Format, ...) {
+UINTN EFIAPI PrintWithAttributes(UINTN Attribute, IN CONST CHAR16* Format, ...) {
 	EFI_STATUS Status = EFI_SUCCESS;
 	UINTN Return = 0;
 	CHAR16* Buffer = NULL;
