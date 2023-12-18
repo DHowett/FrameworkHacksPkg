@@ -144,7 +144,7 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	EC_IMAGE_FMAP_HEADER* IncomingImageFlashMap = NULL;
 	EC_IMAGE_FMAP_AREA_HEADER* IncomingImageRoFridArea = NULL;
 	UINT16 RegionFlashMask = 0;
-	BOOLEAN flash_ro_requested = FALSE, flash_rw_requested = FALSE;
+	BOOLEAN flash_ro_requested = FALSE, flash_rw_requested = FALSE, flash_all_requested = FALSE;
 	UINT16 RegionFlashDesireMask = 0xFFFF; // By default, we desire all regions
 	const FLASH_MAP* FinalFlashMap = NULL;
 
@@ -157,6 +157,8 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		} else if(StrCmp(argv[i], L"--rw") == 0) {
 			RegionFlashDesireMask = 0;
 			flash_rw_requested = TRUE;
+		} else if(StrCmp(argv[i], L"--all") == 0) {
+			flash_all_requested = TRUE;
 		} else {
 			filename = argv[i];
 			// the filename is the last argument. All stop!
@@ -296,6 +298,9 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 			RegionFlashDesireMask |= RegionBit;
 		}
 	}
+
+	if(flash_all_requested)
+		RegionFlashDesireMask = 0xFFFF;
 
 	// Restrict the flashed regions to only the ones we actually want to overwrite.
 	RegionFlashMask &= RegionFlashDesireMask;
