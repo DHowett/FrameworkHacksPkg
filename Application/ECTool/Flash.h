@@ -19,6 +19,6 @@ struct ec_params_flash_notified {
 } __ec_align1;
 /// End Framework Specific
 
-enum ec_status flash_read(int offset, int size, char* buffer);
-enum ec_status flash_write(int offset, int size, char* buffer);
-enum ec_status flash_erase(int offset, int size);
+int flash_read(int offset, int size, char* buffer);
+int flash_write(int offset, int size, char* buffer);
+int flash_erase(int offset, int size);

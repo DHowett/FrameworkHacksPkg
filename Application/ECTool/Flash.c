@@ -10,7 +10,7 @@
 
 extern EFI_CROSEC_PROTOCOL* gECProtocol;
 
-enum ec_status flash_read(int offset, int size, char* buffer) {
+int flash_read(int offset, int size, char* buffer) {
 	struct ec_params_flash_read p;
 	const int chunk = G_EC_MAX_RESPONSE;
 	char buf[G_EC_MAX_RESPONSE] = {0};
@@ -27,7 +27,7 @@ enum ec_status flash_read(int offset, int size, char* buffer) {
 	return 0;
 }
 
-enum ec_status flash_write(int offset, int size, char* buffer) {
+int flash_write(int offset, int size, char* buffer) {
 	struct ec_response_flash_info_1 flashInfo;
 	int rv;
 	for(int i = 0; i < 3; ++i) {
@@ -61,7 +61,7 @@ enum ec_status flash_write(int offset, int size, char* buffer) {
 	return 0;
 }
 
-enum ec_status flash_erase(int offset, int size) {
+int flash_erase(int offset, int size) {
 	struct ec_params_get_cmd_versions pgv = {};
 	struct ec_response_get_cmd_versions rgv;
 	int rv;
