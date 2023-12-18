@@ -20,3 +20,4 @@
   BaseLib
   DebugLib
   DevicePathLib
+  FmapLib

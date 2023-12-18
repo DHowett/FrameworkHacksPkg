@@ -6,6 +6,7 @@
 #include <Library/DevicePathLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiBootServicesTableLib.h>
+#include <Library/FmapLib.h>
 
 #include <Protocol/CrosEC.h>
 #include <Protocol/DevicePath.h>
@@ -72,12 +73,23 @@ ECSendCommandNullLpc(UINTN command, UINTN version, const void* outdata, UINTN ou
 			DebugPrint(DEBUG_VERBOSE, "FW FLASH LOCK STATE: %d\n", (int)(*(char*)outdata));
 			return EC_RES_SUCCESS;
 		case EC_CMD_GET_BUILD_INFO:
-			CopyMem(indata, "NULL EC!", MIN(insize, 9));
-			return 9;  // bytes
+			CopyMem(indata, "CrosECNullLib Driver", MIN(insize, 20));
+			return 20;  // bytes
 		case EC_CMD_GET_VERSION: {
 			static struct ec_response_get_version resp = {
 				.version_string_rw = "fake_0.0.1",
 			};
+			EC_IMAGE_FMAP_HEADER *hdr = GetImageFlashMap(gMutableFlash, gFlashLen);
+			if (hdr) {
+				EC_IMAGE_FMAP_AREA_HEADER *rofrid = GetImageFlashArea(hdr, "RO_FRID");
+				if (rofrid) {
+					CopyMem(resp.version_string_ro, gMutableFlash + rofrid->Offset, sizeof(resp.version_string_ro));
+				}
+				EC_IMAGE_FMAP_AREA_HEADER *rwfwid = GetImageFlashArea(hdr, "RW_FWID");
+				if (rwfwid) {
+					CopyMem(resp.version_string_rw, gMutableFlash + rwfwid->Offset, sizeof(resp.version_string_rw));
+				}
+			}
 			CopyMem(indata, &resp, sizeof(resp));
 			return EC_RES_SUCCESS;
 		}
