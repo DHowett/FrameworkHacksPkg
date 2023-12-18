@@ -30,16 +30,8 @@ int flash_read(int offset, int size, char* buffer) {
 int flash_write(int offset, int size, char* buffer) {
 	struct ec_response_flash_info_1 flashInfo;
 	int rv;
-	for(int i = 0; i < 3; ++i) {
-		rv = gECProtocol->SendCommand(EC_CMD_FLASH_INFO, 1, NULL, 0, &flashInfo, sizeof(flashInfo));
-		if(rv >= 0)
-			break;
-		else if(rv == -EC_RES_BUSY || rv == -EC_RES_TIMEOUT) {
-			gBS->Stall(10000); // wait 100msec; did the EC come back?
-		} else // All other errors
-			break;
-	}
 
+	rv = gECProtocol->SendCommand(EC_CMD_FLASH_INFO, 1, NULL, 0, &flashInfo, sizeof(flashInfo));
 	if(rv < 0) {
 		Print(L"Failed to query flash info\n");
 		return rv;
@@ -61,32 +53,66 @@ int flash_write(int offset, int size, char* buffer) {
 	return 0;
 }
 
+int flash_erase_async(int offset, int size) {
+	int rv = 0;
+
+	struct ec_params_flash_erase_v1 p;
+	int asyncTries = 4; // Up to 20 seconds at 500ms/piece
+	p.cmd = FLASH_ERASE_SECTOR_ASYNC;
+	p.reserved = 0;
+	p.flag = 0;
+	p.params.offset = offset;
+	p.params.size = size;
+	rv = gECProtocol->SendCommand(EC_CMD_FLASH_ERASE, 1, &p, sizeof(p), NULL, 0);
+
+	if(rv < 0) {
+		// We failed to start the erase.
+		return rv;
+	}
+
+	p.cmd = FLASH_ERASE_GET_RESULT;
+	do {
+		gBS->Stall(500000);
+		rv = gECProtocol->SendCommand(EC_CMD_FLASH_ERASE, 1, &p, sizeof(p), NULL, 0);
+		--asyncTries;
+	} while(rv < 0 && asyncTries);
+
+	return rv;
+}
+
 int flash_erase(int offset, int size) {
 	struct ec_params_get_cmd_versions pgv = {};
 	struct ec_response_get_cmd_versions rgv;
-	int rv;
+	struct ec_params_flash_erase p;
+	int asyncTries = 20; // Up to 20 seconds at 100ms/piece
+	int rv = 0;
 
 	pgv.cmd = EC_CMD_FLASH_ERASE;
 	rv = gECProtocol->SendCommand(EC_CMD_GET_CMD_VERSIONS, 0, &pgv, sizeof(pgv), &rgv, sizeof(rgv));
 	if(rv < 0) {
-		Print(L"Failed to determine supported versions of ERASE\n");
-		return rv;
+		// If the EC doesn't support GET_CMD_VERSIONS, assume it doesn't support ERASE_V1
+		rgv.version_mask = 0;
+		rv = 0;
 	}
 
-	struct ec_params_flash_erase p;
+	if(rgv.version_mask & EC_VER_MASK(1))
+		return flash_erase_async(offset, size);
+
+	// We only get here if we didn't support async erase.
 	p.offset = offset;
 	p.size = size;
 
-	if(rgv.version_mask & EC_VER_MASK(1)) {
-		// If the chip supports asynchronous erase, **don't use it**.
-		struct ec_params_flash_erase_v1 pv1;
-		pv1.cmd = FLASH_ERASE_SECTOR;
-		pv1.reserved = 0;
-		pv1.flag = 0;
-		pv1.params = p;
-		rv = gECProtocol->SendCommand(EC_CMD_FLASH_ERASE, 1, &pv1, sizeof(pv1), NULL, 0);
-	} else {
-		rv = gECProtocol->SendCommand(EC_CMD_FLASH_ERASE, 0, &p, sizeof(p), NULL, 0);
+	rv = gECProtocol->SendCommand(EC_CMD_FLASH_ERASE, 0, &p, sizeof(p), NULL, 0);
+
+	// If the Erase command times out, kick it with a couple HELLOs until the bus clears
+	// (some ECs will not respond to host commands while erasing flash)
+	while(rv < 0 && asyncTries) {
+		struct ec_params_hello ph = {};
+		struct ec_response_hello rh = {};
+		gBS->Stall(100000); // Wait 100ms
+		rv = gECProtocol->SendCommand(EC_CMD_HELLO, 0, &ph, sizeof(ph), &rh, sizeof(rh));
+		--asyncTries;
 	}
+
 	return rv;
 }
