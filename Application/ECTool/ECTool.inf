@@ -11,6 +11,7 @@
   EC.c
   FWUpdate.c
   Flash.c
+  Output.c
   ECTool.uni
 
 [Packages]
