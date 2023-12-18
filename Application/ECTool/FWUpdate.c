@@ -71,11 +71,59 @@ EFI_STATUS CheckReadyForECFlash() {
 	return EFI_SUCCESS;
 }
 
-#define FLASH_BASE    0x0  // 0x80000
-#define FLASH_RO_BASE 0x0
-#define FLASH_RO_SIZE 0x3C000
-#define FLASH_RW_BASE 0x40000
-#define FLASH_RW_SIZE 0x39000
+#define FLASH_REGION_BOOTBLOCK 0x01
+#define FLASH_REGION_SKIP      0x02
+
+typedef struct _FLASH_REGION {
+	const CHAR8* name;
+	UINTN base;
+	UINTN size;
+	UINTN flags;
+} FLASH_REGION;
+
+typedef struct _FLASH_MAP {
+	const CHAR8* board;
+	const FLASH_REGION* regions;
+	UINTN flags;
+} FLASH_MAP;
+
+const FLASH_REGION hx_flash_regions[] = {
+	{ "RO",     0x00000, 0x3C000, FLASH_REGION_BOOTBLOCK },
+	{ "RO_VPD", 0x3C000, 0x04000, FLASH_REGION_SKIP },
+	{ "RW",     0x40000, 0x39000, 0 },
+	{ "RW_VPD", 0x79000, 0x07000, FLASH_REGION_SKIP },
+	{ NULL, 0, 0, },
+};
+
+const FLASH_REGION azalea_lotus_flash_regions[] = {
+	{ "RO",        0x00000, 0x40000, FLASH_REGION_BOOTBLOCK },
+	{ "RW",        0x40000, 0x3F000, 0 },
+	{ "SPI_FLAGS", 0x7F000, 0x01000, FLASH_REGION_SKIP },
+	{ NULL, 0, 0, },
+};
+
+/*
+ * When we can't tell what board it is, and the user passes -f -f,
+ * just assume it is a 50/50 split between RO and RW.
+ */
+const FLASH_REGION unknown_board_flash_regions[] = {
+	{ "RO",        0x00000, 0x40000, FLASH_REGION_BOOTBLOCK },
+	{ "RW",        0x40000, 0x40000, 0 },
+	{ NULL, 0, 0, },
+};
+const FLASH_MAP unknown_board_flash_map = {
+	"unknown",
+	unknown_board_flash_regions,
+	0,
+};
+
+const FLASH_MAP flash_maps[] = {
+	{ "hx20", hx_flash_regions, 0 },
+	{ "hx30", hx_flash_regions, 0 },
+	{ "azalea", azalea_lotus_flash_regions, 0 },
+	{ "lotus", azalea_lotus_flash_regions, 0 },
+	{ NULL, NULL, 0 },
+};
 
 EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	EFI_STATUS Status = EFI_SUCCESS;
@@ -92,19 +140,24 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	char* FirmwareBoardId = NULL;
 	int FirmwareBoardIdLength = 0;
 	int force = 0;
-	BOOLEAN flash_ro = TRUE, flash_rw = TRUE;
 	CHAR16* filename = NULL;
 	EC_IMAGE_FMAP_HEADER* IncomingImageFlashMap = NULL;
 	EC_IMAGE_FMAP_AREA_HEADER* IncomingImageRoFridArea = NULL;
+	UINT16 RegionFlashMask = 0;
+	BOOLEAN flash_ro_requested = FALSE, flash_rw_requested = FALSE;
+	UINT16 RegionFlashDesireMask = 0xFFFF; // By default, we desire all regions
+	const FLASH_MAP* FinalFlashMap = NULL;
 
 	for(int i = 1; i < argc; ++i) {
 		if(StrCmp(argv[i], L"-f") == 0)
 			++force;
-		else if(StrCmp(argv[i], L"--ro") == 0)
-			flash_rw = FALSE;
-		else if(StrCmp(argv[i], L"--rw") == 0)
-			flash_ro = FALSE;
-		else {
+		else if(StrCmp(argv[i], L"--ro") == 0) {
+			RegionFlashDesireMask = 0;
+			flash_ro_requested = TRUE;
+		} else if(StrCmp(argv[i], L"--rw") == 0) {
+			RegionFlashDesireMask = 0;
+			flash_rw_requested = TRUE;
+		} else {
 			filename = argv[i];
 			// the filename is the last argument. All stop!
 			break;
@@ -210,6 +263,43 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		goto Out;
 	}
 
+	// Figure out which board map to use
+	for(const FLASH_MAP* map = flash_maps; map->board; ++map) {
+		if(0 == AsciiStrnCmp(map->board, FirmwareBoardId, FirmwareBoardIdLength)) {
+			FinalFlashMap = map;
+			break;
+		}
+	}
+
+	if(!FinalFlashMap) {
+		Print(L"*** UNKNOWN BOARD %.*a ***\n", FirmwareBoardIdLength, FirmwareBoardId);
+		if (force < 2) {
+			Status = EFI_ABORTED;
+			goto Out;
+		}
+		Print(L"Assuming you know what you're doing.\n");
+		FinalFlashMap = &unknown_board_flash_map;
+	}
+
+	// Calculate the mask of regions we intend to flash.
+	for(const FLASH_REGION* region = FinalFlashMap->regions; region->name; ++region) {
+		UINT16 RegionBit = (1 << (region - FinalFlashMap->regions));
+		RegionFlashMask |= RegionBit;
+		if(region->flags & FLASH_REGION_SKIP) {
+			// Unmark skipped regions as desired; the user can
+			// override this with --all
+			RegionFlashDesireMask &= ~(RegionBit);
+		}
+		if(flash_ro_requested && 0 == AsciiStrCmp("RO", region->name)) {
+			RegionFlashDesireMask |= RegionBit;
+		} else if(flash_rw_requested && 0 == AsciiStrCmp("RW", region->name)) {
+			RegionFlashDesireMask |= RegionBit;
+		}
+	}
+
+	// Restrict the flashed regions to only the ones we actually want to overwrite.
+	RegionFlashMask &= RegionFlashDesireMask;
+
 	Print(L"*** STARTING FLASH (PRESS ANY KEY TO CANCEL)\n");
 	Key.ScanCode = SCAN_NULL;
 	for(int i = 7; i > 0; i--) {
@@ -243,62 +333,41 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		goto EcOut;
 	Print(L"OK\n");
 
-	if (flash_rw == TRUE) {
-		Print(L"RW: Erasing... ");
-		rv = flash_erase(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE);
+	while(RegionFlashMask) {
+		// We erase and flash the regions in reverse order; bailing out
+		// after RW but before RO stands a chance of preserving the
+		// system.
+		int index = 31 - __builtin_clz(RegionFlashMask);
+		const FLASH_REGION* Region = &FinalFlashMap->regions[index];
+
+		RegionFlashMask &= ~(1 << index);
+
+		Print(L"%a: Erasing... ", Region->name);
+		rv = flash_erase(Region->base, Region->size);
 		if(rv < 0)
 			goto EcOut;
 		Print(L"OK. ");
 
 		Print(L"Writing... ");
-		rv = flash_write(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, FirmwareBuffer + FLASH_RW_BASE);
+		rv = flash_write(Region->base, Region->size, FirmwareBuffer + Region->base);
 		if(rv < 0)
 			goto EcOut;
 		Print(L"OK. ");
 
 		Print(L"Verifying: Read... ");
-		rv = flash_read(FLASH_BASE + FLASH_RW_BASE, FLASH_RW_SIZE, VerifyBuffer + FLASH_RW_BASE);
+		rv = flash_read(Region->base, Region->size, VerifyBuffer + Region->base);
 		if(rv < 0)
 			goto EcOut;
 
 		Print(L"OK. Check... ");
 
-		if(CompareMem(VerifyBuffer + FLASH_RW_BASE, FirmwareBuffer + FLASH_RW_BASE, FLASH_RW_SIZE) == 0) {
+		if(CompareMem(VerifyBuffer + Region->base, FirmwareBuffer + Region->base, Region->size) == 0) {
 			Print(L"OK!\n");
 		} else {
 			Print(L"FAILED!\n");
-			Print(L"*** RW FAILED VERIFICATION! NOT PROCEEDING TO RO ***\n");
-			// Bailing out after RW but before RO stands a chance of preserving the system
+			Print(L"*** %a FAILED VERIFICATION! ABORTING ***\n", Region->name);
 			rv = -1;
 			goto ErrorOut;
-		}
-	}
-
-	if (flash_ro == TRUE) {
-		Print(L"RO: Erasing... ");
-		rv = flash_erase(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE);
-		if(rv < 0)
-			goto EcOut;
-		Print(L"OK. ");
-
-		Print(L"Writing... ");
-		rv = flash_write(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE, FirmwareBuffer + FLASH_RO_BASE);
-		if(rv < 0)
-			goto EcOut;
-		Print(L"OK. ");
-
-		Print(L"Verifying: Read... ");
-
-		rv = flash_read(FLASH_BASE + FLASH_RO_BASE, FLASH_RO_SIZE, VerifyBuffer + FLASH_RO_BASE);
-		if(rv < 0)
-			goto EcOut;
-
-		Print(L"OK. Check... ");
-
-		if(CompareMem(VerifyBuffer + FLASH_RO_BASE, FirmwareBuffer + FLASH_RO_BASE, FLASH_RO_SIZE) == 0) {
-			Print(L"OK!\n");
-		} else {
-			Print(L"FAILED!\n");
 		}
 	}
 
