@@ -1,6 +1,8 @@
 #include <Library/BaseMemoryLib.h>
 #include <Library/CrosECLib.h>
 #include <Library/UefiLib.h>
+#include <Library/UefiBootServicesTableLib.h>
+
 #include <Protocol/CrosEC.h>
 
 #include "EC.h"
@@ -27,7 +29,17 @@ enum ec_status flash_read(int offset, int size, char* buffer) {
 
 enum ec_status flash_write(int offset, int size, char* buffer) {
 	struct ec_response_flash_info_1 flashInfo;
-	int rv = gECProtocol->SendCommand(EC_CMD_FLASH_INFO, 1, NULL, 0, &flashInfo, sizeof(flashInfo));
+	int rv;
+	for(int i = 0; i < 3; ++i) {
+		rv = gECProtocol->SendCommand(EC_CMD_FLASH_INFO, 1, NULL, 0, &flashInfo, sizeof(flashInfo));
+		if(rv >= 0)
+			break;
+		else if(rv == -EC_RES_BUSY || rv == -EC_RES_TIMEOUT) {
+			gBS->Stall(10000); // wait 100msec; did the EC come back?
+		} else // All other errors
+			break;
+	}
+
 	if(rv < 0) {
 		Print(L"Failed to query flash info\n");
 		return rv;
@@ -50,8 +62,31 @@ enum ec_status flash_write(int offset, int size, char* buffer) {
 }
 
 enum ec_status flash_erase(int offset, int size) {
+	struct ec_params_get_cmd_versions pgv = {};
+	struct ec_response_get_cmd_versions rgv;
+	int rv;
+
+	pgv.cmd = EC_CMD_FLASH_ERASE;
+	rv = gECProtocol->SendCommand(EC_CMD_GET_CMD_VERSIONS, 0, &pgv, sizeof(pgv), &rgv, sizeof(rgv));
+	if(rv < 0) {
+		Print(L"Failed to determine supported versions of ERASE\n");
+		return rv;
+	}
+
 	struct ec_params_flash_erase p;
 	p.offset = offset;
 	p.size = size;
-	return gECProtocol->SendCommand(EC_CMD_FLASH_ERASE, 0, &p, sizeof(p), NULL, 0);
+
+	if(rgv.version_mask & EC_VER_MASK(1)) {
+		// If the chip supports asynchronous erase, **don't use it**.
+		struct ec_params_flash_erase_v1 pv1;
+		pv1.cmd = FLASH_ERASE_SECTOR;
+		pv1.reserved = 0;
+		pv1.flag = 0;
+		pv1.params = p;
+		rv = gECProtocol->SendCommand(EC_CMD_FLASH_ERASE, 1, &pv1, sizeof(pv1), NULL, 0);
+	} else {
+		rv = gECProtocol->SendCommand(EC_CMD_FLASH_ERASE, 0, &p, sizeof(p), NULL, 0);
+	}
+	return rv;
 }
