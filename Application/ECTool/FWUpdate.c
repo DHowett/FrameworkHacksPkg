@@ -7,6 +7,7 @@
 #include "EC.h"
 #include "FWUpdate.h"
 #include "Flash.h"
+#include "Output.h"
 
 extern EFI_CROSEC_PROTOCOL* gECProtocol;
 
@@ -149,7 +150,7 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 
 	Status = force > 0 ? EFI_SUCCESS : CheckReadyForECFlash();
 	if(EFI_ERROR(Status)) {
-		Print(L"System not ready\n");
+		PrintWithAttributes(EFI_YELLOW, L"System not ready\n");
 		goto Out;
 	}
 
@@ -287,7 +288,7 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 
 	Status = force > 0 ? EFI_SUCCESS : CheckReadyForECFlash();
 	if(EFI_ERROR(Status)) {
-		Print(L"System not ready\n");
+		PrintWithAttributes(EFI_YELLOW, L"System not ready\n");
 		goto Out;
 	}
 
@@ -304,7 +305,7 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
 		if(rv < 0)
 			goto EcOut;
-		Print(L"OK\n");
+		PrintWithAttributes(EFI_GREEN, L"OK\n");
 	}
 
 	while(RegionFlashMask) {
@@ -320,26 +321,27 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		rv = flash_erase(Region->base, Region->size);
 		if(rv < 0)
 			goto EcOut;
-		Print(L"OK. ");
+		PrintWithAttributes(EFI_GREEN, L"OK. ");
 
 		Print(L"Writing... ");
 		rv = flash_write(Region->base, Region->size, FirmwareBuffer + Region->base);
 		if(rv < 0)
 			goto EcOut;
-		Print(L"OK. ");
+		PrintWithAttributes(EFI_GREEN, L"OK. ");
 
 		Print(L"Verifying: Read... ");
 		rv = flash_read(Region->base, Region->size, VerifyBuffer + Region->base);
 		if(rv < 0)
 			goto EcOut;
 
-		Print(L"OK. Check... ");
+		PrintWithAttributes(EFI_GREEN, L"OK. ");
+		Print(L"Check... ");
 
 		if(CompareMem(VerifyBuffer + Region->base, FirmwareBuffer + Region->base, Region->size) == 0) {
-			Print(L"OK!\n");
+			PrintWithAttributes(EFI_LIGHTGREEN, L"OK!\n");
 		} else {
-			Print(L"FAILED!\n");
-			Print(L"*** %a FAILED VERIFICATION! ABORTING ***\n", Region->name);
+			PrintWithAttributes(EFI_LIGHTRED, L"FAILED!\n");
+			PrintWithAttributes(EFI_LIGHTRED, L"*** %a FAILED VERIFICATION! ABORTING ***\n", Region->name);
 			rv = -1;
 			goto ErrorOut;
 		}
@@ -355,7 +357,7 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		rv = gECProtocol->SendCommand(EC_CMD_FLASH_NOTIFIED, 0, &FlashNotifyParams, sizeof(FlashNotifyParams), NULL, 0);
 		if(rv < 0)
 			goto EcOut;
-		Print(L"OK\n");
+		PrintWithAttributes(EFI_GREEN, L"OK\n");
 	}
 
 	Print(L"\nLooks like it worked?\nConsider running `ectool reboot` to reset the EC/AP.\n");
@@ -367,7 +369,7 @@ EcOut:
 ErrorOut:
 	if(rv < 0) {
 		Print(L"\n");
-		Print(L"*** YOUR COMPUTER MAY NO LONGER BOOT ***\n");
+		PrintWithAttributes(EFI_LIGHTRED, L"*** YOUR COMPUTER MAY NO LONGER BOOT ***\n");
 		Status = EFI_DEVICE_ERROR;
 	}
 Out:
