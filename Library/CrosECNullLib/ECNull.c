@@ -1,6 +1,7 @@
 #include <Uefi.h>
 
 #include <Library/BaseMemoryLib.h>
+#include <Library/BaseLib.h>
 #include <Library/CrosECLib.h>
 #include <Library/DebugLib.h>
 #include <Library/DevicePathLib.h>
@@ -63,6 +64,20 @@ INTN EFIAPI ECReadMemoryNullLpc(UINTN offset, void* buffer, UINTN length) {
 
 static int flashBytesErased = 0;
 static int flashBytesWritten = 0;
+static int gConsoleCount = 0;
+
+static const char* STATIC_CONSOLE_LOGS[] = {
+	"This is the CrosECNullLib\r\n"
+	"simulation console. It wi",
+
+	"\r\nll be read",
+
+	" out in multipl\n",
+
+	"e p",
+
+	"ackets.\r\n",
+};
 
 INTN EFIAPI
 ECSendCommandNullLpc(UINTN command, UINTN version, const void* outdata, UINTN outsize, void* indata, UINTN insize) {
@@ -135,6 +150,24 @@ ECSendCommandNullLpc(UINTN command, UINTN version, const void* outdata, UINTN ou
 			DebugPrint(DEBUG_VERBOSE, "FLASH_STAT: %d erased, %d written\n", flashBytesErased,
 			           flashBytesWritten);
 			return EC_RES_SUCCESS;
+		case EC_CMD_CONSOLE_SNAPSHOT:
+			gConsoleCount = 0;
+			return EC_RES_SUCCESS; // A-OK! We "snapshotted" the "console!"
+		case EC_CMD_CONSOLE_READ: {
+			struct ec_params_console_read_v1* p = (struct ec_params_console_read_v1*)outdata;
+			if(gConsoleCount >= ARRAY_SIZE(STATIC_CONSOLE_LOGS)) {
+				return EC_RES_SUCCESS;
+			}
+
+			if(p->subcmd == CONSOLE_READ_RECENT || p->subcmd == CONSOLE_READ_NEXT) {
+				const char* currentLogEntry = STATIC_CONSOLE_LOGS[gConsoleCount++];
+				UINTN entryLength = AsciiStrLen(currentLogEntry);
+				CopyMem(indata, currentLogEntry, MIN(insize, entryLength));
+				return MIN(insize, entryLength);
+			}
+
+			return -EECRESULT - EC_RES_INVALID_PARAM;
+		}
 	}
 	return -EC_RES_INVALID_COMMAND;
 }
