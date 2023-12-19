@@ -206,6 +206,20 @@ EFI_STATUS cmd_reboot(int argc, CHAR16** argv) {
 	return Status;
 }
 
+/* Prints a string that might not contain carriage returns. */
+static void PrintLogBuffer(char* buf, UINTN length) {
+#define CONSUMED (bp - buf)
+	for(char* bp = buf; (CONSUMED < length) && *bp;) {
+		char* lf = ScanMem8(bp, length, (UINT8)'\n');
+		UINTN segmentLen = lf ? (lf - bp) : length - CONSUMED;
+		if(lf && lf > &buf[0] && *(lf - 1) == '\r')
+			--segmentLen;  // Don't print the \r either.
+		Print(L"%.*a%a", segmentLen, bp, lf ? "\r\n" : "");
+		bp = lf ? (lf + 1) : buf + length;
+	}
+#undef CONSUMED
+}
+
 EFI_STATUS cmd_console(int argc, CHAR16** argv) {
 	EFI_STATUS Status = EFI_SUCCESS;
 	struct ec_params_console_read_v1 p;
@@ -222,8 +236,8 @@ EFI_STATUS cmd_console(int argc, CHAR16** argv) {
 		if(rv < 0)
 			goto EcOut;
 
-		if(rv > 0 && buf[0])
-			Print(L"%a", buf);
+		if(rv > 0)
+			PrintLogBuffer(buf, rv);
 
 		p.subcmd = CONSOLE_READ_NEXT;
 	} while(rv > 0 && buf[0]);
