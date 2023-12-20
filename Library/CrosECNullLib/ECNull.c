@@ -1,18 +1,28 @@
 #include <Uefi.h>
 
-#include <Library/BaseMemoryLib.h>
 #include <Library/BaseLib.h>
+#include <Library/BaseMemoryLib.h>
 #include <Library/CrosECLib.h>
 #include <Library/DebugLib.h>
 #include <Library/DevicePathLib.h>
+#include <Library/FmapLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiBootServicesTableLib.h>
-#include <Library/FmapLib.h>
 
 #include <Protocol/CrosEC.h>
 #include <Protocol/DevicePath.h>
 
-// This is a memory dump of EC mapped memory from a Framework Laptop running EC ver 8109392.
+#define HOST_COMMAND_IMPL(EC_CMD_name) \
+	static INTN impl_##EC_CMD_name(const void* params, INTN paramsSize, void* response, INTN responseSize)
+#define HOST_COMMAND_CASE(EC_CMD_name)                                       \
+	case EC_CMD_##EC_CMD_name:                                           \
+		return impl_##EC_CMD_name(outdata, outsize, indata, insize); \
+		break
+
+#define HC_PARAMS(type)   struct type* p = (struct type*)params
+#define HC_RESPONSE(type) struct type* r = (struct type*)response
+
+// This is a memory dump of EC mapped memory from a Framework Laptop 13 (11th Gen Intel) running EC ver 8109392.
 // It was plugged in at the time (so the battery flags includes AC_PRESENT).
 unsigned char ECMEM_BIN[] = {
 	0x6b, 0x79, 0x6e, 0x5e, 0x98, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xad,
@@ -79,95 +89,117 @@ static const char* STATIC_CONSOLE_LOGS[] = {
 	"ackets.\r\n",
 };
 
+HOST_COMMAND_IMPL(GET_BUILD_INFO) {
+	CopyMem(response, "CrosECNullLib Driver", MIN(responseSize, 20));
+	return 20;  // bytes
+}
+
+HOST_COMMAND_IMPL(GET_VERSION) {
+	static struct ec_response_get_version resp = {
+		.version_string_rw = "fake_0.0.1",
+	};
+	EC_IMAGE_FMAP_HEADER* hdr = GetImageFlashMap(gMutableFlash, gFlashLen);
+	if(hdr) {
+		EC_IMAGE_FMAP_AREA_HEADER* rofrid = GetImageFlashArea(hdr, "RO_FRID");
+		if(rofrid) {
+			CopyMem(resp.version_string_ro, gMutableFlash + rofrid->Offset, sizeof(resp.version_string_ro));
+		}
+		EC_IMAGE_FMAP_AREA_HEADER* rwfwid = GetImageFlashArea(hdr, "RW_FWID");
+		if(rwfwid) {
+			CopyMem(resp.version_string_rw, gMutableFlash + rwfwid->Offset, sizeof(resp.version_string_rw));
+		}
+	}
+	CopyMem(response, &resp, sizeof(resp));
+	return sizeof(resp);
+}
+
+HOST_COMMAND_IMPL(FLASH_INFO) {
+	static struct ec_response_flash_info_1 resp = {
+		.flash_size = gFlashLen,
+		.write_block_size = 4,
+		.erase_block_size = 4096,
+		.protect_block_size = 4096,
+		.write_ideal_size = 240,
+		.flags = 0,
+	};
+	CopyMem(response, &resp, sizeof(resp));
+	return sizeof(resp);
+}
+
+HOST_COMMAND_IMPL(FLASH_READ) {  // flash read
+	HC_PARAMS(ec_params_flash_read);
+	CopyMem(response, &gMutableFlash[p->offset], MIN(responseSize, p->size));
+	// If you write the entire 512kb flash with a 457ns stall per 240 bytes, it will take one second.
+	gBS->Stall(457);
+	return MIN(responseSize, p->size);
+}
+
+HOST_COMMAND_IMPL(FLASH_WRITE) {  // flash write
+	HC_PARAMS(ec_params_flash_write);
+	DebugPrint(DEBUG_VERBOSE, "FLASH_WRITE: %x for %d bytes\n", p->offset, p->size);
+	for(int i = 0; i < p->size; ++i) {
+		gMutableFlash[p->offset + i] &= ((char*)(p + 1))[i];
+	}
+	// inject fault
+	// gMutableFlash[p->offset] ^= 0x7f;
+	flashBytesWritten += p->size;
+	// If you write the entire 512kb flash with a 457ns stall per 240 bytes, it will take one second.
+	gBS->Stall(457);
+	return p->size;
+}
+
+HOST_COMMAND_IMPL(FLASH_ERASE) {
+	HC_PARAMS(ec_params_flash_erase);
+	DebugPrint(DEBUG_VERBOSE, "FLASH_ERASE: %x for %d blocks\n", p->offset, p->size / 4096);
+	SetMem(&gMutableFlash[p->offset], p->size, 0xff);
+	gBS->Stall(500000);  // Takes a half second.
+	flashBytesErased += p->size;
+	return 0;
+}
+
+HOST_COMMAND_IMPL(CONSOLE_SNAPSHOT) {
+	gConsoleCount = 0;
+	return 0;  // A-OK! We "snapshotted" the "console!"
+}
+
+HOST_COMMAND_IMPL(CONSOLE_READ) {
+	HC_PARAMS(ec_params_console_read_v1);
+
+	if(gConsoleCount >= ARRAY_SIZE(STATIC_CONSOLE_LOGS)) {
+		return EC_RES_SUCCESS;
+	}
+
+	if(p->subcmd == CONSOLE_READ_RECENT || p->subcmd == CONSOLE_READ_NEXT) {
+		const char* currentLogEntry = STATIC_CONSOLE_LOGS[gConsoleCount++];
+		UINTN entryLength = AsciiStrLen(currentLogEntry);
+		CopyMem(response, currentLogEntry, MIN(responseSize, entryLength));
+		return MIN(responseSize, entryLength);
+	}
+
+	return -EECRESULT - EC_RES_INVALID_PARAM;
+}
+
 INTN EFIAPI
 ECSendCommandNullLpc(UINTN command, UINTN version, const void* outdata, UINTN outsize, void* indata, UINTN insize) {
 	DebugPrint(DEBUG_VERBOSE, "ECSendCommandLPCv3: %X/%d send %d bytes expect %d\n", command, version, outsize,
 	           insize);
 	switch(command) {
+		HOST_COMMAND_CASE(GET_BUILD_INFO);
+		HOST_COMMAND_CASE(GET_VERSION);
+		HOST_COMMAND_CASE(FLASH_INFO);
+		HOST_COMMAND_CASE(FLASH_READ);
+		HOST_COMMAND_CASE(FLASH_WRITE);
+		HOST_COMMAND_CASE(FLASH_ERASE);
+		HOST_COMMAND_CASE(CONSOLE_SNAPSHOT);
+		HOST_COMMAND_CASE(CONSOLE_READ);
+
 		case 0x3E01:  // Framework flash lock/unlock
 			DebugPrint(DEBUG_VERBOSE, "FW FLASH LOCK STATE: %d\n", (int)(*(char*)outdata));
 			return EC_RES_SUCCESS;
-		case EC_CMD_GET_BUILD_INFO:
-			CopyMem(indata, "CrosECNullLib Driver", MIN(insize, 20));
-			return 20;  // bytes
-		case EC_CMD_GET_VERSION: {
-			static struct ec_response_get_version resp = {
-				.version_string_rw = "fake_0.0.1",
-			};
-			EC_IMAGE_FMAP_HEADER *hdr = GetImageFlashMap(gMutableFlash, gFlashLen);
-			if (hdr) {
-				EC_IMAGE_FMAP_AREA_HEADER *rofrid = GetImageFlashArea(hdr, "RO_FRID");
-				if (rofrid) {
-					CopyMem(resp.version_string_ro, gMutableFlash + rofrid->Offset, sizeof(resp.version_string_ro));
-				}
-				EC_IMAGE_FMAP_AREA_HEADER *rwfwid = GetImageFlashArea(hdr, "RW_FWID");
-				if (rwfwid) {
-					CopyMem(resp.version_string_rw, gMutableFlash + rwfwid->Offset, sizeof(resp.version_string_rw));
-				}
-			}
-			CopyMem(indata, &resp, sizeof(resp));
-			return EC_RES_SUCCESS;
-		}
-		case EC_CMD_FLASH_INFO: {
-			static struct ec_response_flash_info_1 resp = {
-				.flash_size = gFlashLen,
-				.write_block_size = 4,
-				.erase_block_size = 4096,
-				.protect_block_size = 4096,
-				.write_ideal_size = 240,
-				.flags = 0,
-			};
-			CopyMem(indata, &resp, sizeof(resp));
-			return EC_RES_SUCCESS;
-		}
-		case EC_CMD_FLASH_READ: {  // flash read
-			struct ec_params_flash_read* p = (struct ec_params_flash_read*)outdata;
-			CopyMem(indata, &gMutableFlash[p->offset], MIN(insize, p->size));
-			// If you write the entire 512kb flash with a 457ns stall per 240 bytes, it will take one second.
-			gBS->Stall(457);
-			return MIN(insize, p->size);
-		}
-		case EC_CMD_FLASH_WRITE: {  // flash write
-			struct ec_params_flash_write* p = (struct ec_params_flash_write*)outdata;
-			DebugPrint(DEBUG_VERBOSE, "FLASH_WRITE: %x for %d bytes\n", p->offset, p->size);
-			for(int i = 0; i < p->size; ++i) {
-				gMutableFlash[p->offset + i] &= ((char*)(p + 1))[i];
-			}
-			flashBytesWritten += p->size;
-			// If you write the entire 512kb flash with a 457ns stall per 240 bytes, it will take one second.
-			gBS->Stall(457);
-			return EC_RES_SUCCESS;
-		}
-		case EC_CMD_FLASH_ERASE: {
-			struct ec_params_flash_erase* p = (struct ec_params_flash_erase*)outdata;
-			DebugPrint(DEBUG_VERBOSE, "FLASH_ERASE: %x for %d blocks\n", p->offset, p->size / 4096);
-			SetMem(&gMutableFlash[p->offset], p->size, 0xff);
-			gBS->Stall(500000); // Takes a half second.
-			flashBytesErased += p->size;
-			return EC_RES_SUCCESS;
-		}
 		case 0x3EFF:  // Custom EC command to dump flash stats
 			DebugPrint(DEBUG_VERBOSE, "FLASH_STAT: %d erased, %d written\n", flashBytesErased,
 			           flashBytesWritten);
 			return EC_RES_SUCCESS;
-		case EC_CMD_CONSOLE_SNAPSHOT:
-			gConsoleCount = 0;
-			return EC_RES_SUCCESS; // A-OK! We "snapshotted" the "console!"
-		case EC_CMD_CONSOLE_READ: {
-			struct ec_params_console_read_v1* p = (struct ec_params_console_read_v1*)outdata;
-			if(gConsoleCount >= ARRAY_SIZE(STATIC_CONSOLE_LOGS)) {
-				return EC_RES_SUCCESS;
-			}
-
-			if(p->subcmd == CONSOLE_READ_RECENT || p->subcmd == CONSOLE_READ_NEXT) {
-				const char* currentLogEntry = STATIC_CONSOLE_LOGS[gConsoleCount++];
-				UINTN entryLength = AsciiStrLen(currentLogEntry);
-				CopyMem(indata, currentLogEntry, MIN(insize, entryLength));
-				return MIN(insize, entryLength);
-			}
-
-			return -EECRESULT - EC_RES_INVALID_PARAM;
-		}
 	}
 	return -EC_RES_INVALID_COMMAND;
 }
