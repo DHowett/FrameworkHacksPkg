@@ -55,6 +55,16 @@
   FrameworkHacksPkg/Application/ECTool/ECTool.inf
   FrameworkHacksPkg/Drivers/FrameworkPanicCaptureDriver/FrameworkPanicCaptureDriver.inf
   FrameworkHacksPkg/Application/ECTest/ECTest.inf
+  FrameworkHacksPkg/Drivers/ECStatDriver/ECStatDriver.inf
+
+  FrameworkHacksPkg/Drivers/FrameworkEcAcpiNodePatcher/FrameworkEcAcpiNodePatcherDxe.inf
+
+  FrameworkHacksPkg/Drivers/FrameworkEcAcpiNodePatcher/FrameworkEcAcpiNodePatcherDxe.inf {
+    <Defines>
+      FILE_GUID = 1A65E1D1-43FC-11F0-AF3F-14AC60468E65
+    <PcdsFeatureFlag>
+      gFrameworkPackageTokenSpaceGuid.PcdUseFrameworkECAcpiNode|FALSE
+  }
 
   # Example - How to customize the EC implementation for one application
   #FrameworkHacksPkg/Application/ECTool/ECTool.inf {

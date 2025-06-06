@@ -7,9 +7,16 @@
 [Includes]
   Include
 
+[Guids]
+  gFrameworkPackageTokenSpaceGuid = { 0x3F2FFF2F, 0xE6C3, 0x49C3, { 0xBB, 0xF1, 0x67, 0xA5, 0xC6, 0x6B, 0x57, 0x04 } }
+# {3F2FFF2F-E6C3-49C3-BBF1-67A5C66B5704}
+
 [Protocols]
   gEfiCrosECProtocolGuid = { 0x76945038, 0x21bf, 0x465c, { 0xb9, 0x11, 0x95, 0x61, 0xfc, 0xe0, 0x30, 0xa4 } }
 # {76945038-21BF-465C-B911-9561FCE030A4}
 
 [LibraryClasses]
   CrosECLib|Include/Library/CrosECLib.h
+
+[PcdsFeatureFlag]
+  gFrameworkPackageTokenSpaceGuid.PcdUseFrameworkECAcpiNode|TRUE|BOOLEAN|0x00000001
