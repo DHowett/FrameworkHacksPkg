@@ -1,6 +1,6 @@
 [Defines]
   INF_VERSION                    = 0x00010005
-  BASE_NAME                      = FrameworkEcAcpiPatcherDxe
+  BASE_NAME                      = FrameworkEcAcpiNodePatcherDxe
   FILE_GUID                      = EA08F3C4-4326-11F0-825A-14AC60468E65
   MODULE_TYPE                    = DXE_DRIVER
   VERSION_STRING                 = 1.0
@@ -8,6 +8,8 @@
 
 [Sources]
   FrameworkEcAcpiNodePatcher.c
+  frmwc004.asl
+  goog0004.asl
   
 [Packages]
   FrameworkHacksPkg/FrameworkHacksPkg.dec
@@ -20,15 +22,10 @@
   UefiDriverEntryPoint
   
 [Protocols]
-  gEfiLoadedImageProtocolGuid            ## CONSUMES
+  gEfiAcpiTableProtocolGuid              ## CONSUMES
   
-[Guids]
-  gEfiAcpiTableGuid
-  gEfiAcpi20TableGuid
-  gEfiDxeServicesTableGuid
-
 [Depex]
-   gEfiLoadedImageProtocolGuid
+  gEfiAcpiTableProtocolGuid
 
 [Pcd]
   gFrameworkPackageTokenSpaceGuid.PcdUseFrameworkECAcpiNode       ## CONSUMES
