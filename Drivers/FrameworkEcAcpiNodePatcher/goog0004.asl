@@ -1,4 +1,4 @@
-DefinitionBlock ("goog0004.asl", "SSDT", 2, "GOOG", "GOOG0004", 0x00000003)
+DefinitionBlock ("goog0004.asl", "SSDT", 2, "GOOG", "GOOG0004", 0x20250607)
 {
     Scope (_SB)
     {

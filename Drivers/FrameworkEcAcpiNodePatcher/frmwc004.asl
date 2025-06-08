@@ -1,4 +1,4 @@
-DefinitionBlock ("frmwc004.asl", "SSDT", 2, "FWK ", "FRMWC004", 0x00000003)
+DefinitionBlock ("frmwc004.asl", "SSDT", 2, "FWK ", "FRMWC004", 0x20250607)
 {
     Scope (_SB)
     {
