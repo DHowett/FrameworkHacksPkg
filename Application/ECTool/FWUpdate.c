@@ -63,7 +63,7 @@ const FLASH_REGION hx_flash_regions[] = {
 	{ NULL, 0, 0, },
 };
 
-const FLASH_REGION azalea_lotus_flash_regions[] = {
+const FLASH_REGION npcx_flash_regions[] = {
 	{ "RO",        0x00000, 0x40000, FLASH_REGION_BOOTBLOCK },
 	{ "RW",        0x40000, 0x3F000, 0 },
 	{ "SPI_FLAGS", 0x7F000, 0x01000, FLASH_REGION_SKIP },
@@ -88,8 +88,11 @@ const FLASH_MAP unknown_board_flash_map = {
 const FLASH_MAP flash_maps[] = {
 	{ "hx20", hx_flash_regions, FLASH_DEVICE_REQUIRES_UNLOCK },
 	{ "hx30", hx_flash_regions, FLASH_DEVICE_REQUIRES_UNLOCK },
-	{ "azalea", azalea_lotus_flash_regions, 0 },
-	{ "lotus", azalea_lotus_flash_regions, 0 },
+	{ "azalea", npcx_flash_regions, 0 },
+	{ "lotus", npcx_flash_regions, 0 },
+	{ "marigold", npcx_flash_regions, 0 },
+	{ "sunflower", npcx_flash_regions, 0 },
+	{ "lilac", npcx_flash_regions, 0 },
 	{ NULL, NULL, 0 },
 };
 
