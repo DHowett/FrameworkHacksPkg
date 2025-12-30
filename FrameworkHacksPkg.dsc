@@ -43,6 +43,8 @@
 
   FmapLib|FrameworkHacksPkg/Library/FmapLib/FmapLib.inf
 
+  BmpSupportLib|MdeModulePkg/Library/BaseBmpSupportLib/BaseBmpSupportLib.inf
+
   # Just to be safe, everything in this DSC should link at least one EC communication library
   NULL|FrameworkHacksPkg/Library/MicrochipCrosECLib/MicrochipCrosECLib.inf
   NULL|FrameworkHacksPkg/Library/AzaleaCrosECLib/AzaleaCrosECLib.inf
