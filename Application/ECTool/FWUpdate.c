@@ -200,9 +200,9 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	CurrentBoardId = &VersionResponse.version_string_ro[0];
 	if(!*CurrentBoardId) // The hx20 EC will by default only return the current active version; compensate
 		CurrentBoardId = &VersionResponse.version_string_rw[0];
-	// Versions are of the format board_vX.Y.Z; truncate at the _ to get the board
+	// Versions are of the format board_vX.Y.Z or board-X.Y.Z; truncate at the delimiter to get the board
 	for(char* end = CurrentBoardId; end < (CurrentBoardId + 32); ++end) {
-		if (*end == '_') {
+		if (*end == '_' || *end == '-') {
 			*end = '\0';
 			break;
 		}
@@ -224,7 +224,10 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 
 	FirmwareBoardId = FirmwareBuffer + IncomingImageRoFridArea->Offset;
 
-	for(; FirmwareBoardId[FirmwareBoardIdLength] != '_' && FirmwareBoardIdLength < 32; ++FirmwareBoardIdLength)
+	for(; FirmwareBoardId[FirmwareBoardIdLength] != '_' &&
+	      FirmwareBoardId[FirmwareBoardIdLength] != '-' &&
+	      FirmwareBoardIdLength < 32;
+	    ++FirmwareBoardIdLength)
 		;
 	if(force < 2 && 0 != AsciiStrnCmp(CurrentBoardId, FirmwareBoardId, FirmwareBoardIdLength)) {
 		// We're about to abort the process, so we can edit the board ID in the
