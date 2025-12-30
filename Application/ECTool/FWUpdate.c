@@ -93,6 +93,7 @@ const FLASH_MAP flash_maps[] = {
 	{ "marigold", npcx_flash_regions, 0 },
 	{ "sunflower", npcx_flash_regions, 0 },
 	{ "lilac", npcx_flash_regions, 0 },
+	{ "tulip", npcx_flash_regions, 0 },
 	{ NULL, NULL, 0 },
 };
 
